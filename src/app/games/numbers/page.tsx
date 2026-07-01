@@ -63,10 +63,15 @@ export default function NumbersGamePage() {
   const [depositAmount, setDepositAmount] = useState("");
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
+  const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
   const [secondPrizeNumber, setSecondPrizeNumber] = useState<number | null>(null);
   const [bothGameMode, setBothGameMode] = useState(false);
   const [bothGameAmount, setBothGameAmount] = useState(500);
+  const [showBothConfirm, setShowBothConfirm] = useState(false);
+  const [showBothModal, setShowBothModal] = useState(false);
+  const [pendingNumber, setPendingNumber] = useState<number | null>(null);
+  const [selectedParticipantForBoth, setSelectedParticipantForBoth] = useState<Participant | null>(null);
+  const [bothGameChoice, setBothGameChoice] = useState<"both" | "numbers" | "evenodd">("both");
   const form = useForm<FormData>({ resolver: zodResolver(bettingParticipantSchema), defaultValues: { name: "", amount: 200 } });
 
   async function load() {
@@ -120,7 +125,7 @@ const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
     }
   }
 
-async function assign(participant: Participant, selectedNumber: number) {
+  async function assign(participant: Participant, selectedNumber: number) {
     const existingEntry = entryByParticipantAndNumber.get(`${participant.id}:${selectedNumber}`);
     if (existingEntry) {
       setPendingAction({ type: "removeNumber", participant, selectedNumber, ticketPrice: existingEntry.ticketPrice });
@@ -137,15 +142,29 @@ async function assign(participant: Participant, selectedNumber: number) {
     await saveAssignment(participant.id, selectedNumber);
   }
 
-  const [showBothConfirm, setShowBothConfirm] = useState(false);
-  const [showBothModal, setShowBothModal] = useState(false);
-  const [pendingNumber, setPendingNumber] = useState<number | null>(null);
-  const [selectedParticipantForBoth, setSelectedParticipantForBoth] = useState<Participant | null>(null);
+  function confirmGameChoice() {
+    if (!selectedParticipantForBoth || pendingNumber === null) return;
+    setShowBothConfirm(false);
+    if (bothGameChoice === "both") {
+      setShowBothModal(true);
+    } else if (bothGameChoice === "numbers") {
+      saveAssignment(selectedParticipantForBoth.id, pendingNumber);
+    } else if (bothGameChoice === "evenodd") {
+      const side = pendingNumber % 2 === 0 ? "EVEN" : "ODD";
+      api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, side, amount: bothGameAmount }) })
+        .then(() => {
+          toast.success(t("participantAdded"));
+          load();
+        })
+        .catch(error => toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber")));
+    }
+  }
 
   async function saveAssignment(participantId: string, selectedNumber: number) {
     try {
       await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId, selectedNumber }) });
       await load();
+      toast.success(t("participantAdded"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber"));
     }
@@ -685,21 +704,30 @@ async function assign(participant: Participant, selectedNumber: number) {
           <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
             <div className="border-b border-zinc-200 bg-red-50 px-4 py-3 dark:border-zinc-800 dark:bg-red-950/30">
               <p className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">Confirm</p>
-              <h2 className="mt-1 text-lg font-bold">Play Both Games?</h2>
+              <h2 className="mt-1 text-lg font-bold">Which Game to Play?</h2>
             </div>
             <div className="space-y-4 p-4">
               <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                {selectedParticipantForBoth.name} will play:
+                {selectedParticipantForBoth.name} selected #{pendingNumber}
               </p>
-              <div className="rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-950/30">
-                <p className="text-xs text-emerald-700 dark:text-emerald-300">Numbers: #{pendingNumber}</p>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300">Even-Odd: {pendingNumber % 2 === 0 ? "EVEN" : "ODD"}</p>
+              <div className="grid gap-2">
+                <button className={`h-12 rounded border-2 p-3 text-left transition ${bothGameChoice === "numbers" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 hover:border-zinc-400"}`} onClick={() => setBothGameChoice("numbers")}>
+                  <p className="font-bold text-sm">Numbers Only</p>
+                  <p className="text-xs text-zinc-500">Play #{pendingNumber} in Numbers game</p>
+                </button>
+                <button className={`h-12 rounded border-2 p-3 text-left transition ${bothGameChoice === "evenodd" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 hover:border-zinc-400"}`} onClick={() => setBothGameChoice("evenodd")}>
+                  <p className="font-bold text-sm">Even-Odd Only</p>
+                  <p className="text-xs text-zinc-500">{pendingNumber % 2 === 0 ? "EVEN" : "ODD"} bet for #{pendingNumber}</p>
+                </button>
+                <button className={`h-12 rounded border-2 p-3 text-left transition ${bothGameChoice === "both" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 hover:border-zinc-400"}`} onClick={() => setBothGameChoice("both")}>
+                  <p className="font-bold text-sm">Both Games</p>
+                  <p className="text-xs text-zinc-500">Numbers #{pendingNumber} + {pendingNumber % 2 === 0 ? "EVEN" : "ODD"} bet</p>
+                </button>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Click "Numbers Only" to play Numbers game only (cancel Even-Odd).</p>
             </div>
             <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => { setShowBothConfirm(false); saveAssignment(selectedParticipantForBoth.id, pendingNumber); }}>{t("cancel")}</button>
-              <button className="btn-primary flex-1 h-10 text-sm" onClick={() => { setShowBothConfirm(false); setShowBothModal(true); }}>Play Both</button>
+              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => setShowBothConfirm(false)}>{t("cancel")}</button>
+              <button className="btn-primary flex-1 h-10 text-sm" onClick={confirmGameChoice}>Continue</button>
             </div>
           </div>
         </div>

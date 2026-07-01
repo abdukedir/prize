@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
 import { asNumber, getOpenNumbersGame, getSettings } from "@/lib/games/numbers";
+import { processEvenOddRoundResult } from "@/lib/games/even-odd";
 import { finishNumbersGameSchema } from "@/lib/validators";
 
 export async function POST(req: NextRequest) {
@@ -133,9 +134,18 @@ export async function POST(req: NextRequest) {
           secondPrizePaid: asNumber(report.secondPrizePaid),
           winnerRateDeduction: asNumber(report.winnerRateDeduction),
           netIncome: asNumber(report.netIncome)
-        }
+        },
+        winningNumber: data.firstPrizeNumber
       };
     });
+
+    const evenOddRound = await prisma.evenOddRound.findFirst({
+      where: { tenantId: user.tenantId, status: "OPEN" }
+    });
+
+    if (evenOddRound) {
+      await processEvenOddRoundResult(user.tenantId, evenOddRound.id, result.winningNumber, { id: user.id, name: user.name });
+    }
 
     await logActivity(user.id, user.tenantId, `Finished Numbers game ${game.number}`);
     return ok(result);
