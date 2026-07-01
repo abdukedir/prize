@@ -695,9 +695,10 @@ async function assign(participant: Participant, selectedNumber: number) {
                 <p className="text-xs text-emerald-700 dark:text-emerald-300">Numbers: #{pendingNumber}</p>
                 <p className="text-xs text-emerald-700 dark:text-emerald-300">Even-Odd: {pendingNumber % 2 === 0 ? "EVEN" : "ODD"}</p>
               </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Click "Numbers Only" to play Numbers game only (cancel Even-Odd).</p>
             </div>
             <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => setShowBothConfirm(false)}>{t("cancel")}</button>
+              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => { setShowBothConfirm(false); saveAssignment(selectedParticipantForBoth.id, pendingNumber); }}>{t("cancel")}</button>
               <button className="btn-primary flex-1 h-10 text-sm" onClick={() => { setShowBothConfirm(false); setShowBothModal(true); }}>Play Both</button>
             </div>
           </div>
