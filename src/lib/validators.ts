@@ -66,9 +66,7 @@ export const roundSchema = z.object({
   status: z.enum(["OPEN", "CLOSED"]).optional()
 });
 
-const evenOddAmount = z.coerce.number().min(500).max(100000).refine((value) => value % 500 === 0, {
-  message: "Amount must use 0.5K increments"
-});
+const evenOddAmount = z.coerce.number().min(1).max(100000);
 
 export const evenOddCreateRoomSchema = z.object({
   participantId: z.string().min(1),
