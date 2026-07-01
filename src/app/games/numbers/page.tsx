@@ -12,6 +12,8 @@ import { api, money } from "@/lib/client";
 import { statusKey, useI18n } from "@/lib/i18n";
 import { bettingParticipantSchema } from "@/lib/validators";
 
+type Side = "EVEN" | "ODD";
+
 type Settings = {
   ticketPrice: number;
   firstPrize: number;
@@ -63,6 +65,7 @@ export default function NumbersGamePage() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
   const [secondPrizeNumber, setSecondPrizeNumber] = useState<number | null>(null);
+  const [bothGameMode, setBothGameMode] = useState(false);
   const form = useForm<FormData>({ resolver: zodResolver(bettingParticipantSchema), defaultValues: { name: "", amount: 200 } });
 
   async function load() {
@@ -123,12 +126,16 @@ export default function NumbersGamePage() {
       return;
     }
 
-    checkZeroBalance(participant);
-    await saveAssignment(participant.id, selectedNumber);
+    await saveAssignment(participant.id, selectedNumber, bothGameMode ? (selectedNumber % 2 === 0 ? "EVEN" : "ODD") : null);
   }
 
-  async function saveAssignment(participantId: string, selectedNumber: number) {
+  async function saveAssignment(participantId: string, selectedNumber: number, evenOddSide: Side | null) {
     try {
+      if (evenOddSide) {
+        await api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId, side: evenOddSide, amount: state?.settings.ticketPrice ?? 200 }) }).catch(e => {
+          throw new Error(`Even-Odd bet failed: ${e instanceof Error ? e.message : String(e)}`);
+        });
+      }
       await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId, selectedNumber }) });
       await load();
     } catch (error) {
@@ -177,7 +184,7 @@ export default function NumbersGamePage() {
     setPendingAction(null);
 
     if (action.type === "removeNumber") {
-      await saveAssignment(action.participant.id, action.selectedNumber);
+      await saveAssignment(action.participant.id, action.selectedNumber, null);
     } else if (action.type === "deactivate") {
       await saveStatus(action.participant.id, "DISABLED");
     } else {
@@ -278,7 +285,12 @@ export default function NumbersGamePage() {
     <AppShell user={user}>
       <div className="space-y-2">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">{t("numbersGame", { number: state.game.number })}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">{t("numbersGame", { number: state.game.number })}</p>
+            <button className={`h-7 px-2 text-[11px] rounded font-semibold transition ${bothGameMode ? "bg-purple-500 text-white" : "border border-zinc-200 bg-white hover:bg-purple-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`} onClick={() => setBothGameMode(!bothGameMode)}>
+              {bothGameMode ? "Both ON" : "Both"}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs flex-1 sm:flex-initial" onClick={() => setShowRegistration(true)}><Plus size={14} /><span className="hidden sm:inline">{t("addParticipant")}</span></button>
             <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs flex-1 sm:flex-initial" onClick={() => setShowWinnerSelection(true)}><Trophy size={14} /><span className="hidden sm:inline">{t("selectWinners")}</span></button>
@@ -299,14 +311,18 @@ export default function NumbersGamePage() {
                     {numberOptions.map((number) => {
                       const selected = selectedNumbers.includes(number);
                       const taken = assignedNumbers.has(number) && !selected;
+                      const side = bothGameMode ? (number % 2 === 0 ? "E" : "O") : null;
                       return (
                         <button
                           key={number}
-                          className={`h-5 rounded text-[11px] font-bold ${selected ? "bg-emerald-500 text-white" : taken ? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800" : "border border-zinc-200 hover:bg-emerald-50 dark:border-zinc-800 dark:hover:bg-zinc-800"}`}
+                          className={`h-5 rounded text-[11px] font-bold relative ${selected ? "bg-emerald-500 text-white" : taken ? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800" : "border border-zinc-200 hover:bg-emerald-50 dark:border-zinc-800 dark:hover:bg-zinc-800"}`}
                           disabled={taken}
                           onClick={() => assign(participant, number)}
                         >
-                          {number}
+                          <span className="flex items-center justify-center gap-1">
+                            {number}
+                            {side && <span className="text-[8px] opacity-70">({side})</span>}
+                          </span>
                         </button>
                       );
                     })}
