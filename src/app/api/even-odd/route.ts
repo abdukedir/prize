@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
-import { getOpenEvenOddRound, refundExpiredEvenOddRooms, serializeEvenOddRoom, serializeEvenOddRound, EVEN_ODD_TIMEOUT_MINUTES } from "@/lib/games/even-odd";
+import { getOpenEvenOddRound, serializeEvenOddRoom, serializeEvenOddRound, EVEN_ODD_TIMEOUT_MINUTES } from "@/lib/games/even-odd";
 import { evenOddCreateRoomSchema } from "@/lib/validators";
 
 const roomInclude = {
@@ -14,7 +13,6 @@ const roomInclude = {
 };
 
 async function loadState(tenantId: string) {
-  await refundExpiredEvenOddRooms(tenantId);
   const round = await getOpenEvenOddRound(tenantId);
   const [rooms, latestResult, participants] = await Promise.all([
     prisma.evenOddRoom.findMany({
@@ -67,7 +65,6 @@ export async function POST(req: NextRequest) {
         where: { id: data.participantId, tenantId: user.tenantId, status: { not: "DISABLED" } }
       });
       if (!participant) throw new Response("Participant not found", { status: 404 });
-      if (new Prisma.Decimal(participant.balance).lt(data.amount)) throw new Response("Insufficient balance", { status: 400 });
 
       const latestRoom = await tx.evenOddRoom.findFirst({ where: { tenantId: user.tenantId }, orderBy: { roomNumber: "desc" } });
       const room = await tx.evenOddRoom.create({

@@ -217,7 +217,11 @@ const dictionaries: Record<Language, Dict> = {
     statusActive: "Active",
     statusWinner: "Winner",
     statusLost: "Lost",
-    statusDisabled: "Disabled"
+    statusDisabled: "Disabled",
+    even: "Even",
+    odd: "Odd",
+    evenShort: "E",
+    oddShort: "O"
   },
   am: {
     loading: "በመጫን ላይ...",
@@ -428,7 +432,11 @@ const dictionaries: Record<Language, Dict> = {
     statusActive: "ንቁ",
     statusWinner: "አሸናፊ",
     statusLost: "ተሸንፏል",
-    statusDisabled: "ተዘግቷል"
+    statusDisabled: "ተዘግቷል",
+    even: "ሙሉ",
+    odd: "ጎዶሎ",
+    evenShort: "ሙ",
+    oddShort: "ጎ"
   },
   om: {
     loading: "Fe'amaa jira...",
@@ -639,7 +647,11 @@ const dictionaries: Record<Language, Dict> = {
     statusActive: "Hojii irra",
     statusWinner: "Mo'ataa",
     statusLost: "Mo'ame",
-    statusDisabled: "Dhaameera"
+    statusDisabled: "Dhaameera",
+    even: "Guutuu",
+    odd: "Qaraa",
+    evenShort: "G",
+    oddShort: "Q"
   }
 };
 

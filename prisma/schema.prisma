@@ -7,10 +7,228 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Tenant {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  createdAt     DateTime       @default(now())
+  activityLogs  ActivityLog[]
+  entries       Entry[]
+  evenOddBets   EvenOddBet[]
+  evenOddRooms  EvenOddRoom[]
+  evenOddRounds EvenOddRound[]
+  rounds        GameRound[]
+  participants  Participant[]
+  reports       Report[]
+  settings      Setting?
+  users         User[]
+  winners       Winner[]
+}
+
+model User {
+  id                     String         @id @default(cuid())
+  tenantId               String
+  name                   String
+  email                  String         @unique
+  password               String
+  role                   Role           @default(EMPLOYEE)
+  disabled               Boolean        @default(false)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  activityLogs           ActivityLog[]
+  publishedEvenOddRounds EvenOddRound[] @relation("EvenOddPublishedBy")
+  tenant                 Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  winners                Winner[]       @relation("SelectedBy")
+
+  @@index([tenantId, role])
+}
+
+model Participant {
+  id              String            @id @default(cuid())
+  tenantId        String
+  fullName        String
+  phoneNumber     String            @default("")
+  amountDeposited Decimal           @db.Decimal(18, 2)
+  createdById     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  balance         Decimal           @default(0) @db.Decimal(18, 2)
+  status          ParticipantStatus @default(ACTIVE)
+  entries         Entry[]
+  evenOddBets     EvenOddBet[]
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  winners         Winner[]
+
+  @@index([tenantId, fullName])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model GameRound {
+  id        String      @id @default(cuid())
+  tenantId  String
+  number    Int
+  status    RoundStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+  closedAt  DateTime?
+  gameType  GameType    @default(NUMBERS)
+  entries   Entry[]
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  report    Report?
+  winners   Winner[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, gameType, status])
+}
+
+model Entry {
+  id             String      @id @default(cuid())
+  tenantId       String
+  participantId  String
+  gameId         String
+  selectedNumber Int
+  ticketPrice    Decimal     @db.Decimal(12, 2)
+  createdAt      DateTime    @default(now())
+  game           GameRound   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  participant    Participant @relation(fields: [participantId], references: [id])
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, selectedNumber])
+  @@index([tenantId, gameId])
+}
+
+model Winner {
+  id            String      @id @default(cuid())
+  tenantId      String
+  participantId String
+  prizeAmount   Decimal     @db.Decimal(12, 2)
+  selectedById  String
+  roundId       String
+  roundNumber   Int
+  createdAt     DateTime    @default(now())
+  prizeRank     PrizeRank   @default(FIRST)
+  rateDeduction Decimal     @default(0) @db.Decimal(12, 2)
+  participant   Participant @relation(fields: [participantId], references: [id])
+  round         GameRound   @relation(fields: [roundId], references: [id])
+  selectedBy    User        @relation("SelectedBy", fields: [selectedById], references: [id])
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, prizeRank])
+  @@index([tenantId, createdAt])
+}
+
+model Setting {
+  id                 String   @id @default(cuid())
+  tenantId           String   @unique
+  adminFeePercentage Decimal  @default(10) @db.Decimal(5, 2)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  currency           String   @default("ETB")
+  firstPrize         Decimal  @default(1000) @db.Decimal(12, 2)
+  language           String   @default("en")
+  secondPrize        Decimal  @default(200) @db.Decimal(12, 2)
+  theme              String   @default("light")
+  ticketPrice        Decimal  @default(200) @db.Decimal(12, 2)
+  winnerRate         Decimal  @default(0) @db.Decimal(12, 2)
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id                  String     @id @default(cuid())
+  tenantId            String
+  gameId              String?    @unique
+  gameType            GameType
+  gameCount           Int        @default(1)
+  participantCount    Int
+  ticketPrice         Decimal    @db.Decimal(12, 2)
+  totalSales          Decimal    @db.Decimal(12, 2)
+  firstPrizePaid      Decimal    @db.Decimal(12, 2)
+  secondPrizePaid     Decimal    @db.Decimal(12, 2)
+  winnerRateDeduction Decimal    @db.Decimal(12, 2)
+  netIncome           Decimal    @db.Decimal(12, 2)
+  createdAt           DateTime   @default(now())
+  game                GameRound? @relation(fields: [gameId], references: [id])
+  tenant              Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model EvenOddRound {
+  id              String             @id @default(cuid())
+  tenantId        String
+  number          Int
+  status          EvenOddRoundStatus @default(OPEN)
+  selectedNumber  Int?
+  winningSide     EvenOddSide?
+  publishedById   String?
+  publishedByName String?
+  publishedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  rooms           EvenOddRoom[]
+  publishedBy     User?              @relation("EvenOddPublishedBy", fields: [publishedById], references: [id])
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model EvenOddRoom {
+  id           String            @id @default(cuid())
+  tenantId     String
+  roundId      String
+  roomNumber   Int
+  creatorSide  EvenOddSide
+  targetAmount Decimal           @db.Decimal(18, 2)
+  status       EvenOddRoomStatus @default(WAITING)
+  winnerSide   EvenOddSide?
+  platformFee  Decimal           @default(0) @db.Decimal(18, 2)
+  totalPayout  Decimal           @default(0) @db.Decimal(18, 2)
+  matchedAt    DateTime?
+  completedAt  DateTime?
+  expiresAt    DateTime
+  createdAt    DateTime          @default(now())
+  bets         EvenOddBet[]
+  round        EvenOddRound      @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, roomNumber])
+  @@index([tenantId, roundId, status])
+}
+
+model EvenOddBet {
+  id            String      @id @default(cuid())
+  tenantId      String
+  roomId        String
+  participantId String
+  side          EvenOddSide
+  amount        Decimal     @db.Decimal(18, 2)
+  payout        Decimal     @default(0) @db.Decimal(18, 2)
+  createdAt     DateTime    @default(now())
+  participant   Participant @relation(fields: [participantId], references: [id])
+  room          EvenOddRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, roomId])
+  @@index([tenantId, participantId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
+}
+
 enum Role {
-  SUPERADMIN
   ADMIN
   EMPLOYEE
+  SUPERADMIN
 }
 
 enum RoundStatus {
@@ -51,222 +269,4 @@ enum EvenOddRoomStatus {
 enum EvenOddRoundStatus {
   OPEN
   PUBLISHED
-}
-
-model Tenant {
-  id           String        @id @default(cuid())
-  name         String
-  slug         String        @unique
-  users        User[]
-  participants Participant[]
-  winners      Winner[]
-  settings     Setting?
-  rounds       GameRound[]
-  evenOddRounds EvenOddRound[]
-  evenOddRooms  EvenOddRoom[]
-  evenOddBets   EvenOddBet[]
-  entries      Entry[]
-  reports      Report[]
-  activityLogs ActivityLog[]
-  createdAt    DateTime      @default(now())
-}
-
-model User {
-  id           String        @id @default(cuid())
-  tenantId     String
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name         String
-  email        String        @unique
-  password     String
-  role         Role          @default(EMPLOYEE)
-  disabled     Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  winners      Winner[]      @relation("SelectedBy")
-  publishedEvenOddRounds EvenOddRound[] @relation("EvenOddPublishedBy")
-  activityLogs ActivityLog[]
-
-  @@index([tenantId, role])
-}
-
-model Participant {
-  id              String            @id @default(cuid())
-  tenantId        String
-  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  fullName        String
-  phoneNumber     String            @default("")
-  amountDeposited Decimal           @db.Decimal(18, 2)
-  balance         Decimal           @default(0) @db.Decimal(18, 2)
-  status          ParticipantStatus @default(ACTIVE)
-  createdById     String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  entries         Entry[]
-  winners         Winner[]
-  evenOddBets     EvenOddBet[]
-
-  @@index([tenantId, fullName])
-  @@index([tenantId, status])
-  @@index([tenantId, createdAt])
-}
-
-model GameRound {
-  id        String      @id @default(cuid())
-  tenantId  String
-  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  number    Int
-  gameType  GameType    @default(NUMBERS)
-  status    RoundStatus @default(OPEN)
-  createdAt DateTime    @default(now())
-  closedAt  DateTime?
-  entries   Entry[]
-  winners   Winner[]
-  report    Report?
-
-  @@unique([tenantId, number])
-  @@index([tenantId, gameType, status])
-}
-
-model Entry {
-  id             String      @id @default(cuid())
-  tenantId       String
-  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  participantId  String
-  participant    Participant @relation(fields: [participantId], references: [id], onDelete: Restrict)
-  gameId         String
-  game           GameRound   @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  selectedNumber Int
-  ticketPrice    Decimal     @db.Decimal(12, 2)
-  createdAt      DateTime    @default(now())
-
-  @@unique([gameId, selectedNumber])
-  @@index([tenantId, gameId])
-}
-
-model Winner {
-  id            String      @id @default(cuid())
-  tenantId      String
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  participantId String
-  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Restrict)
-  prizeAmount   Decimal     @db.Decimal(12, 2)
-  rateDeduction Decimal     @default(0) @db.Decimal(12, 2)
-  prizeRank     PrizeRank   @default(FIRST)
-  selectedById  String
-  selectedBy    User        @relation("SelectedBy", fields: [selectedById], references: [id], onDelete: Restrict)
-  roundId       String
-  round         GameRound   @relation(fields: [roundId], references: [id], onDelete: Restrict)
-  roundNumber   Int
-  createdAt     DateTime    @default(now())
-
-  @@unique([roundId, prizeRank])
-  @@index([tenantId, createdAt])
-}
-
-model Setting {
-  id                 String   @id @default(cuid())
-  tenantId           String   @unique
-  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  adminFeePercentage Decimal  @default(10) @db.Decimal(5, 2)
-  ticketPrice        Decimal  @default(200) @db.Decimal(12, 2)
-  firstPrize         Decimal  @default(1000) @db.Decimal(12, 2)
-  secondPrize        Decimal  @default(200) @db.Decimal(12, 2)
-  winnerRate         Decimal  @default(0) @db.Decimal(12, 2)
-  currency           String   @default("ETB")
-  language           String   @default("en")
-  theme              String   @default("light")
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-}
-
-model Report {
-  id                  String     @id @default(cuid())
-  tenantId            String
-  tenant              Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  gameId              String?    @unique
-  game                GameRound? @relation(fields: [gameId], references: [id], onDelete: SetNull)
-  gameType            GameType
-  gameCount           Int        @default(1)
-  participantCount    Int
-  ticketPrice         Decimal    @db.Decimal(12, 2)
-  totalSales          Decimal    @db.Decimal(12, 2)
-  firstPrizePaid      Decimal    @db.Decimal(12, 2)
-  secondPrizePaid     Decimal    @db.Decimal(12, 2)
-  winnerRateDeduction Decimal    @db.Decimal(12, 2)
-  netIncome           Decimal    @db.Decimal(12, 2)
-  createdAt           DateTime   @default(now())
-
-  @@index([tenantId, createdAt])
-}
-
-model EvenOddRound {
-  id              String             @id @default(cuid())
-  tenantId        String
-  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  number          Int
-  status          EvenOddRoundStatus @default(OPEN)
-  selectedNumber  Int?
-  winningSide     EvenOddSide?
-  publishedById   String?
-  publishedBy     User?              @relation("EvenOddPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
-  publishedByName String?
-  publishedAt     DateTime?
-  createdAt       DateTime           @default(now())
-  rooms           EvenOddRoom[]
-
-  @@unique([tenantId, number])
-  @@index([tenantId, status])
-}
-
-model EvenOddRoom {
-  id              String            @id @default(cuid())
-  tenantId        String
-  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  roundId         String
-  round           EvenOddRound      @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  roomNumber      Int
-  creatorSide     EvenOddSide
-  targetAmount    Decimal           @db.Decimal(18, 2)
-  status          EvenOddRoomStatus @default(WAITING)
-  winnerSide      EvenOddSide?
-  platformFee     Decimal           @default(0) @db.Decimal(18, 2)
-  totalPayout     Decimal           @default(0) @db.Decimal(18, 2)
-  matchedAt       DateTime?
-  completedAt     DateTime?
-  expiresAt       DateTime
-  createdAt       DateTime          @default(now())
-  bets            EvenOddBet[]
-
-  @@unique([tenantId, roomNumber])
-  @@index([tenantId, roundId, status])
-}
-
-model EvenOddBet {
-  id            String       @id @default(cuid())
-  tenantId      String
-  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  roomId        String
-  room          EvenOddRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  participantId String
-  participant   Participant  @relation(fields: [participantId], references: [id], onDelete: Restrict)
-  side          EvenOddSide
-  amount        Decimal      @db.Decimal(18, 2)
-  payout        Decimal      @default(0) @db.Decimal(18, 2)
-  createdAt     DateTime     @default(now())
-
-  @@index([tenantId, roomId])
-  @@index([tenantId, participantId])
-}
-
-model ActivityLog {
-  id        String   @id @default(cuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String
-  metadata  Json?
-  createdAt DateTime @default(now())
-
-  @@index([tenantId, createdAt])
 }

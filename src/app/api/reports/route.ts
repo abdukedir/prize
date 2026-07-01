@@ -3,14 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { handleError, toCsv } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { asNumber, getSettings } from "@/lib/games/numbers";
+import { translateResult } from "@/lib/server-i18n";
+import { Language } from "@/lib/i18n";
 
 type MoneyFormatter = (value: number) => string;
 
-async function buildPlayerReports(tenantId: string, playerFilter = "") {
+async function buildPlayerReports(tenantId: string, playerFilter = "", language: Language = "en") {
   const playerWhere = playerFilter
     ? { participant: { fullName: { contains: playerFilter, mode: "insensitive" as const } } }
     : {};
-  const [settings, entries, openEntries] = await Promise.all([
+  const [settings, entries, openEntries, evenOddRooms] = await Promise.all([
     getSettings(tenantId),
     prisma.entry.findMany({
       where: {
@@ -27,6 +29,7 @@ async function buildPlayerReports(tenantId: string, playerFilter = "") {
           select: {
             id: true,
             number: true,
+            createdAt: true,
             winners: {
               select: {
                 participantId: true,
@@ -54,6 +57,18 @@ async function buildPlayerReports(tenantId: string, playerFilter = "") {
       select: {
         participantId: true,
         ticketPrice: true
+      }
+    }),
+    prisma.evenOddRoom.findMany({
+      where: { tenantId, status: "COMPLETED" },
+      orderBy: { createdAt: "desc" },
+      include: {
+        bets: {
+          where: playerFilter
+            ? { participant: { fullName: { contains: playerFilter, mode: "insensitive" as const } } }
+            : {},
+          include: { participant: { select: { fullName: true, balance: true } } }
+        }
       }
     })
   ]);
@@ -96,15 +111,16 @@ async function buildPlayerReports(tenantId: string, playerFilter = "") {
     }
   }
 
-  return entries.map((entry) => {
+  const numbersReports = entries.map((entry) => {
     const ticketPrice = asNumber(entry.ticketPrice);
     const remainingBalance = remainingBalanceByParticipantGame.get(`${entry.participant.id}:${entry.game.id}`) ?? asNumber(entry.participant.balance);
     const winner = entry.game.winners.find((gameWinner) => gameWinner.participantId === entry.participant.id);
-    const resultText = winner?.prizeRank === "FIRST"
-      ? "you win 1st prize"
+    const resultKey = winner?.prizeRank === "FIRST"
+      ? "youWin1stPrize"
       : winner?.prizeRank === "SECOND"
-        ? "you win 2nd prize"
-        : "you loss";
+        ? "youWin2ndPrize"
+        : "youLoss";
+    const resultText = translateResult(language, resultKey);
 
     return {
       entryId: entry.id,
@@ -116,9 +132,34 @@ async function buildPlayerReports(tenantId: string, playerFilter = "") {
       ticketPrice,
       remainingBalance,
       result: resultText,
-      reportLine: `${entry.participant.fullName} played number ${entry.selectedNumber} - ticket value ${formatMoney(ticketPrice)} - ${resultText} - remaining balance ${formatMoney(remainingBalance)}.`
+      reportLine: `${entry.participant.fullName} played number ${entry.selectedNumber} - ticket value ${formatMoney(ticketPrice)} - ${resultText} - remaining balance ${formatMoney(remainingBalance)}.`,
+      createdAt: entry.game.createdAt
     };
   });
+
+  const evenOddReports = evenOddRooms.flatMap(room => 
+    room.bets.map(bet => {
+      const resultKey = bet.payout.gt(0) ? "winner" : "loser";
+      const result = translateResult(language, resultKey);
+      return {
+        entryId: `eo-${bet.id}`,
+        gameId: room.id,
+        gameNumber: 0,
+        participantId: bet.participantId,
+        participantName: bet.participant.fullName,
+        playedNumber: 0,
+        ticketPrice: asNumber(bet.amount),
+        remainingBalance: asNumber(bet.participant.balance),
+        result,
+        reportLine: `${bet.participant.fullName} played ${bet.side} with ${formatMoney(asNumber(bet.amount))} - ${result} - balance ${formatMoney(asNumber(bet.participant.balance))}.`,
+        createdAt: room.createdAt
+      };
+    })
+  );
+
+  return [...numbersReports, ...evenOddReports].sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 }
 
 export async function GET(req: NextRequest) {
@@ -126,7 +167,8 @@ export async function GET(req: NextRequest) {
     const user = await requireUser();
     const format = req.nextUrl.searchParams.get("format");
     const player = req.nextUrl.searchParams.get("player")?.trim() ?? "";
-    const playerReports = await buildPlayerReports(user.tenantId, player);
+    const settings = await getSettings(user.tenantId);
+    const playerReports = await buildPlayerReports(user.tenantId, player, settings.language as Language);
 
     if (!format) return NextResponse.json({ playerReports });
 
@@ -137,13 +179,13 @@ export async function GET(req: NextRequest) {
     const payload = isExcel
       ? csv.replaceAll(",", "\t")
       : isPdf
-        ? `<html><body><h1>Numbers Game Report</h1><pre>${csv}</pre><script>window.print()</script></body></html>`
+        ? `<html><body><h1>Game Report</h1><pre>${csv}</pre><script>window.print()</script></body></html>`
         : csv;
 
     return new NextResponse(payload, {
       headers: {
         "content-type": `${isPdf ? "text/html" : "text/plain"}; charset=utf-8`,
-        "content-disposition": `attachment; filename="numbers-game-report.${isPdf ? "html" : isExcel ? "tsv" : "csv"}"`
+        "content-disposition": `attachment; filename="game-report.${isPdf ? "html" : isExcel ? "tsv" : "csv"}`
       }
     });
   } catch (error) {

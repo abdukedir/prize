@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
       });
 
       const totalPrizePaid = firstPrize.plus(secondPrize);
+      const netIncome = totalSales.minus(totalPrizePaid);
       const report = await tx.report.create({
         data: {
           tenantId: user.tenantId,
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
           firstPrizePaid: firstPrize,
           secondPrizePaid: secondPrize,
           winnerRateDeduction: employeeRate,
-          netIncome: totalSales.minus(totalPrizePaid)
+          netIncome
         }
       });
 

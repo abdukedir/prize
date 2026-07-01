@@ -24,7 +24,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         where: { id: data.participantId, tenantId: user.tenantId, status: { not: "DISABLED" } }
       });
       if (!participant) throw new Response("Participant not found", { status: 404 });
-      if (new Prisma.Decimal(participant.balance).lt(data.amount)) throw new Response("Insufficient balance", { status: 400 });
 
       const joinSide = oppositeSide(room.creatorSide);
       const targetAmount = new Prisma.Decimal(room.targetAmount);

@@ -25,7 +25,7 @@ export function handleError(error: unknown) {
     return NextResponse.json({ error: "Validation failed", details: error.flatten() }, { status: 422 });
   }
   console.error(error);
-  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  return NextResponse.json({ error: "Internal server error", details: String(error) }, { status: 500 });
 }
 
 export function serializeMoney(value: unknown) {
