@@ -1,0 +1,20 @@
+[
+  {
+    "code": "en",
+    "label": "English",
+    "nativeName": "English",
+    "active": true
+  },
+  {
+    "code": "am",
+    "label": "Amharic",
+    "nativeName": "አማርኛ",
+    "active": true
+  },
+  {
+    "code": "om",
+    "label": "Oromiffa",
+    "nativeName": "Afaan Oromoo",
+    "active": true
+  }
+]

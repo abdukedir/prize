@@ -1,0 +1,215 @@
+import { EvenOddSide, Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/games/numbers";
+
+export const EVEN_ODD_TIMEOUT_MINUTES = 10;
+export const EVEN_ODD_COMMISSION_RATE = 0.1;
+
+export function oppositeSide(side: EvenOddSide): EvenOddSide {
+  return side === "EVEN" ? "ODD" : "EVEN";
+}
+
+export function sideForNumber(number: number): EvenOddSide {
+  return number % 2 === 0 ? "EVEN" : "ODD";
+}
+
+export function serializeEvenOddRound(round: {
+  id: string;
+  number: number;
+  status: string;
+  selectedNumber: number | null;
+  winningSide: EvenOddSide | null;
+  publishedAt: Date | null;
+  publishedByName: string | null;
+}) {
+  return {
+    id: round.id,
+    number: round.number,
+    status: round.status,
+    selectedNumber: round.selectedNumber,
+    winningSide: round.winningSide,
+    publishedAt: round.publishedAt?.toISOString() ?? null,
+    publishedByName: round.publishedByName
+  };
+}
+
+export function serializeEvenOddRoom(room: {
+  id: string;
+  roomNumber: number;
+  creatorSide: EvenOddSide;
+  targetAmount: unknown;
+  status: string;
+  winnerSide: EvenOddSide | null;
+  platformFee: unknown;
+  totalPayout: unknown;
+  matchedAt: Date | null;
+  completedAt: Date | null;
+  expiresAt: Date;
+  createdAt: Date;
+  bets: {
+    id: string;
+    participantId: string;
+    side: EvenOddSide;
+    amount: unknown;
+    payout: unknown;
+    participant: { fullName: string; balance: unknown };
+  }[];
+}) {
+  const bets = room.bets.map((bet) => ({
+    id: bet.id,
+    participantId: bet.participantId,
+    participantName: bet.participant.fullName,
+    side: bet.side,
+    amount: asNumber(bet.amount),
+    payout: asNumber(bet.payout),
+    balance: asNumber(bet.participant.balance)
+  }));
+  const evenTotal = bets.filter((bet) => bet.side === "EVEN").reduce((sum, bet) => sum + bet.amount, 0);
+  const oddTotal = bets.filter((bet) => bet.side === "ODD").reduce((sum, bet) => sum + bet.amount, 0);
+  const targetAmount = asNumber(room.targetAmount);
+
+  return {
+    id: room.id,
+    roomNumber: room.roomNumber,
+    creatorSide: room.creatorSide,
+    targetAmount,
+    status: room.status,
+    winnerSide: room.winnerSide,
+    platformFee: asNumber(room.platformFee),
+    totalPayout: asNumber(room.totalPayout),
+    evenTotal,
+    oddTotal,
+    remaining: Math.max(0, targetAmount - Math.min(evenTotal, oddTotal)),
+    matchedAt: room.matchedAt?.toISOString() ?? null,
+    completedAt: room.completedAt?.toISOString() ?? null,
+    expiresAt: room.expiresAt.toISOString(),
+    createdAt: room.createdAt.toISOString(),
+    bets
+  };
+}
+
+export async function getOpenEvenOddRound(tenantId: string) {
+  const open = await prisma.evenOddRound.findFirst({
+    where: { tenantId, status: "OPEN" },
+    orderBy: { number: "desc" }
+  });
+  if (open) return open;
+
+  const latest = await prisma.evenOddRound.findFirst({ where: { tenantId }, orderBy: { number: "desc" } });
+  return prisma.evenOddRound.create({
+    data: {
+      tenantId,
+      number: (latest?.number ?? 1057) + 1
+    }
+  });
+}
+
+export async function refundExpiredEvenOddRooms(tenantId: string) {
+  const expiredRooms = await prisma.evenOddRoom.findMany({
+    where: {
+      tenantId,
+      status: "WAITING",
+      expiresAt: { lte: new Date() }
+    },
+    include: { bets: true }
+  });
+
+  for (const room of expiredRooms) {
+    await prisma.$transaction(async (tx) => {
+      await tx.evenOddRoom.updateMany({
+        where: { id: room.id, status: "WAITING" },
+        data: { status: "REFUNDED" }
+      });
+
+      for (const bet of room.bets) {
+        await tx.participant.update({
+          where: { id: bet.participantId },
+          data: { balance: { increment: bet.amount } }
+        });
+      }
+    });
+  }
+}
+
+export async function processEvenOddRoundResult(tenantId: string, roundId: string, selectedNumber: number, employee: { id: string; name: string }) {
+  const winningSide = sideForNumber(selectedNumber);
+
+  return prisma.$transaction(async (tx) => {
+    const round = await tx.evenOddRound.findFirst({
+      where: { id: roundId, tenantId },
+      include: {
+        rooms: {
+          where: { status: "MATCHED" },
+          include: { bets: true }
+        }
+      }
+    });
+
+    if (!round) throw new Response("Round not found", { status: 404 });
+    if (round.status === "PUBLISHED") throw new Response("Result already published", { status: 409 });
+
+    for (const room of round.rooms) {
+      const winningBets = room.bets.filter((bet) => bet.side === winningSide);
+      const losingBets = room.bets.filter((bet) => bet.side !== winningSide);
+      const winningTotal = winningBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
+      const losingTotal = losingBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
+      const platformFee = losingTotal.mul(EVEN_ODD_COMMISSION_RATE);
+      const profitPool = losingTotal.minus(platformFee);
+      let totalPayout = new Prisma.Decimal(0);
+
+      for (const bet of winningBets) {
+        const share = winningTotal.equals(0) ? new Prisma.Decimal(0) : bet.amount.div(winningTotal);
+        const payout = bet.amount.plus(profitPool.mul(share));
+        totalPayout = totalPayout.plus(payout);
+
+        await tx.evenOddBet.update({
+          where: { id: bet.id },
+          data: { payout }
+        });
+        await tx.participant.update({
+          where: { id: bet.participantId },
+          data: { balance: { increment: payout }, status: "WINNER" }
+        });
+      }
+
+      for (const bet of losingBets) {
+        await tx.participant.update({
+          where: { id: bet.participantId },
+          data: { status: "LOST" }
+        });
+      }
+
+      await tx.evenOddRoom.update({
+        where: { id: room.id },
+        data: {
+          status: "COMPLETED",
+          winnerSide: winningSide,
+          platformFee,
+          totalPayout,
+          completedAt: new Date()
+        }
+      });
+    }
+
+    const published = await tx.evenOddRound.update({
+      where: { id: round.id },
+      data: {
+        status: "PUBLISHED",
+        selectedNumber,
+        winningSide,
+        publishedById: employee.id,
+        publishedByName: employee.name,
+        publishedAt: new Date()
+      }
+    });
+
+    await tx.evenOddRound.create({
+      data: {
+        tenantId,
+        number: round.number + 1
+      }
+    });
+
+    return published;
+  });
+}

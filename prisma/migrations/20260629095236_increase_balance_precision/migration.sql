@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Participant" ALTER COLUMN "amountDeposited" SET DATA TYPE DECIMAL(18,2),
+ALTER COLUMN "balance" SET DATA TYPE DECIMAL(18,2);
