@@ -120,7 +120,7 @@ const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
     }
   }
 
-  async function assign(participant: Participant, selectedNumber: number) {
+async function assign(participant: Participant, selectedNumber: number) {
     const existingEntry = entryByParticipantAndNumber.get(`${participant.id}:${selectedNumber}`);
     if (existingEntry) {
       setPendingAction({ type: "removeNumber", participant, selectedNumber, ticketPrice: existingEntry.ticketPrice });
@@ -130,13 +130,14 @@ const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
     if (bothGameMode) {
       setPendingNumber(selectedNumber);
       setSelectedParticipantForBoth(participant);
-      setShowBothModal(true);
+      setShowBothConfirm(true);
       return;
     }
 
     await saveAssignment(participant.id, selectedNumber);
   }
 
+  const [showBothConfirm, setShowBothConfirm] = useState(false);
   const [showBothModal, setShowBothModal] = useState(false);
   const [pendingNumber, setPendingNumber] = useState<number | null>(null);
   const [selectedParticipantForBoth, setSelectedParticipantForBoth] = useState<Participant | null>(null);
@@ -674,6 +675,30 @@ const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showBothConfirm && selectedParticipantForBoth && pendingNumber !== null ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
+          <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
+            <div className="border-b border-zinc-200 bg-red-50 px-4 py-3 dark:border-zinc-800 dark:bg-red-950/30">
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">Confirm</p>
+              <h2 className="mt-1 text-lg font-bold">Play Both Games?</h2>
+            </div>
+            <div className="space-y-4 p-4">
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                {selectedParticipantForBoth.name} will play:
+              </p>
+              <div className="rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-950/30">
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">Numbers: #{pendingNumber}</p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">Even-Odd: {pendingNumber % 2 === 0 ? "EVEN" : "ODD"}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => setShowBothConfirm(false)}>{t("cancel")}</button>
+              <button className="btn-primary flex-1 h-10 text-sm" onClick={() => { setShowBothConfirm(false); setShowBothModal(true); }}>Play Both</button>
             </div>
           </div>
         </div>
