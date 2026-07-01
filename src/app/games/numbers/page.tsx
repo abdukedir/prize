@@ -63,9 +63,10 @@ export default function NumbersGamePage() {
   const [depositAmount, setDepositAmount] = useState("");
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
+const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
   const [secondPrizeNumber, setSecondPrizeNumber] = useState<number | null>(null);
   const [bothGameMode, setBothGameMode] = useState(false);
+  const [bothGameAmount, setBothGameAmount] = useState(500);
   const form = useForm<FormData>({ resolver: zodResolver(bettingParticipantSchema), defaultValues: { name: "", amount: 200 } });
 
   async function load() {
@@ -126,20 +127,43 @@ export default function NumbersGamePage() {
       return;
     }
 
-    await saveAssignment(participant.id, selectedNumber, bothGameMode ? (selectedNumber % 2 === 0 ? "EVEN" : "ODD") : null);
+    if (bothGameMode) {
+      setPendingNumber(selectedNumber);
+      setSelectedParticipantForBoth(participant);
+      setShowBothModal(true);
+      return;
+    }
+
+    await saveAssignment(participant.id, selectedNumber);
   }
 
-  async function saveAssignment(participantId: string, selectedNumber: number, evenOddSide: Side | null) {
+  const [showBothModal, setShowBothModal] = useState(false);
+  const [pendingNumber, setPendingNumber] = useState<number | null>(null);
+  const [selectedParticipantForBoth, setSelectedParticipantForBoth] = useState<Participant | null>(null);
+
+  async function saveAssignment(participantId: string, selectedNumber: number) {
     try {
-      if (evenOddSide) {
-        await api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId, side: evenOddSide, amount: state?.settings.ticketPrice ?? 200 }) }).catch(e => {
-          throw new Error(`Even-Odd bet failed: ${e instanceof Error ? e.message : String(e)}`);
-        });
-      }
       await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId, selectedNumber }) });
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber"));
+    }
+  }
+
+  async function confirmBothGame() {
+    if (!selectedParticipantForBoth || pendingNumber === null) return;
+    const side = pendingNumber % 2 === 0 ? "EVEN" : "ODD";
+    try {
+      setBusy(true);
+      await api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, side, amount: bothGameAmount }) });
+      await saveAssignment(selectedParticipantForBoth.id, pendingNumber);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber"));
+    } finally {
+      setBusy(false);
+      setShowBothModal(false);
+      setSelectedParticipantForBoth(null);
+      setPendingNumber(null);
     }
   }
 
@@ -184,7 +208,7 @@ export default function NumbersGamePage() {
     setPendingAction(null);
 
     if (action.type === "removeNumber") {
-      await saveAssignment(action.participant.id, action.selectedNumber, null);
+      await saveAssignment(action.participant.id, action.selectedNumber);
     } else if (action.type === "deactivate") {
       await saveStatus(action.participant.id, "DISABLED");
     } else {
@@ -206,6 +230,7 @@ export default function NumbersGamePage() {
       await api("/api/numbers/finish", { method: "POST", body: JSON.stringify({ firstPrizeNumber, secondPrizeNumber }) });
       setFirstPrizeNumber(null);
       setSecondPrizeNumber(null);
+      setBothGameMode(false);
       await load();
       toast.success(t("gameFinished"));
       setShowWinnerSelection(false);
@@ -649,6 +674,39 @@ export default function NumbersGamePage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showBothModal && selectedParticipantForBoth && pendingNumber !== null ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
+          <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
+            <div className="border-b border-zinc-200 bg-purple-50 px-4 py-3 dark:border-zinc-800 dark:bg-purple-950/30">
+              <p className="text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">Both Games</p>
+              <h2 className="mt-1 text-lg font-bold">{selectedParticipantForBoth.name} - #{pendingNumber} ({pendingNumber % 2 === 0 ? "EVEN" : "ODD"})</h2>
+            </div>
+            <div className="space-y-4 p-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">Even-Odd Bet Amount (0.5K - 100K)</label>
+                <input
+                  type="number"
+                  step="500"
+                  min="500"
+                  max="100000"
+                  value={bothGameAmount}
+                  onChange={(e) => setBothGameAmount(Math.max(500, Math.min(100000, parseInt(e.target.value) || 500)))}
+                  className="h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                />
+              </div>
+              <div className="rounded-lg bg-purple-50 px-3 py-2 dark:bg-purple-950/30">
+                <p className="text-xs text-purple-700 dark:text-purple-300">Numbers ticket: {money(state?.settings.ticketPrice ?? 200, state?.settings.currency)}</p>
+                <p className="text-xs text-purple-700 dark:text-purple-300">Even-Odd bet: {money(bothGameAmount, state?.settings.currency)}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => setShowBothModal(false)}>{t("cancel")}</button>
+              <button className="btn-primary flex-1 h-10 text-sm" onClick={confirmBothGame}>Play Both</button>
             </div>
           </div>
         </div>
