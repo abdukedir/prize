@@ -65,13 +65,17 @@ export default function NumbersGamePage() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
   const [secondPrizeNumber, setSecondPrizeNumber] = useState<number | null>(null);
-  const [bothGameMode, setBothGameMode] = useState(false);
+const [bothGameMode, setBothGameMode] = useState(false);
+
   const [bothGameAmount, setBothGameAmount] = useState(500);
-  const [showBothConfirm, setShowBothConfirm] = useState(false);
+
   const [showBothModal, setShowBothModal] = useState(false);
-  const [pendingNumber, setPendingNumber] = useState<number | null>(null);
+
   const [selectedParticipantForBoth, setSelectedParticipantForBoth] = useState<Participant | null>(null);
-  const [bothGameChoice, setBothGameChoice] = useState<"both" | "numbers" | "evenodd">("both");
+
+  const [pendingNumber, setPendingNumber] = useState<number | null>(null);
+
+  const [pendingBet, setPendingBet] = useState<{ participant: Participant; amount: number; side: Side } | null>(null);
   const form = useForm<FormData>({ resolver: zodResolver(bettingParticipantSchema), defaultValues: { name: "", amount: 200 } });
 
   async function load() {
@@ -125,7 +129,7 @@ export default function NumbersGamePage() {
     }
   }
 
-  async function assign(participant: Participant, selectedNumber: number) {
+async function assign(participant: Participant, selectedNumber: number) {
     const existingEntry = entryByParticipantAndNumber.get(`${participant.id}:${selectedNumber}`);
     if (existingEntry) {
       setPendingAction({ type: "removeNumber", participant, selectedNumber, ticketPrice: existingEntry.ticketPrice });
@@ -135,28 +139,27 @@ export default function NumbersGamePage() {
     if (bothGameMode) {
       setPendingNumber(selectedNumber);
       setSelectedParticipantForBoth(participant);
-      setShowBothConfirm(true);
+      setShowBothModal(true);
       return;
     }
 
     await saveAssignment(participant.id, selectedNumber);
   }
 
-  function confirmGameChoice() {
+  async function confirmBothGame() {
     if (!selectedParticipantForBoth || pendingNumber === null) return;
-    setShowBothConfirm(false);
-    if (bothGameChoice === "both") {
-      setShowBothModal(true);
-    } else if (bothGameChoice === "numbers") {
-      saveAssignment(selectedParticipantForBoth.id, pendingNumber);
-    } else if (bothGameChoice === "evenodd") {
+    setShowBothModal(false);
+    
+    try {
+      setBusy(true);
       const side = pendingNumber % 2 === 0 ? "EVEN" : "ODD";
-      api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, side, amount: bothGameAmount }) })
-        .then(() => {
-          toast.success(t("participantAdded"));
-          load();
-        })
-        .catch(error => toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber")));
+      await api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, side, amount: bothGameAmount }) });
+      await saveAssignment(selectedParticipantForBoth.id, pendingNumber);
+      toast.success(t("participantAdded"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber"));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -167,23 +170,6 @@ export default function NumbersGamePage() {
       toast.success(t("participantAdded"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber"));
-    }
-  }
-
-  async function confirmBothGame() {
-    if (!selectedParticipantForBoth || pendingNumber === null) return;
-    const side = pendingNumber % 2 === 0 ? "EVEN" : "ODD";
-    try {
-      setBusy(true);
-      await api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, side, amount: bothGameAmount }) });
-      await saveAssignment(selectedParticipantForBoth.id, pendingNumber);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber"));
-    } finally {
-      setBusy(false);
-      setShowBothModal(false);
-      setSelectedParticipantForBoth(null);
-      setPendingNumber(null);
     }
   }
 
@@ -699,40 +685,6 @@ export default function NumbersGamePage() {
         </div>
       ) : null}
 
-      {showBothConfirm && selectedParticipantForBoth && pendingNumber !== null ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
-          <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
-            <div className="border-b border-zinc-200 bg-red-50 px-4 py-3 dark:border-zinc-800 dark:bg-red-950/30">
-              <p className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">Confirm</p>
-              <h2 className="mt-1 text-lg font-bold">Which Game to Play?</h2>
-            </div>
-            <div className="space-y-4 p-4">
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                {selectedParticipantForBoth.name} selected #{pendingNumber}
-              </p>
-              <div className="grid gap-2">
-                <button className={`h-12 rounded border-2 p-3 text-left transition ${bothGameChoice === "numbers" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 hover:border-zinc-400"}`} onClick={() => setBothGameChoice("numbers")}>
-                  <p className="font-bold text-sm">Numbers Only</p>
-                  <p className="text-xs text-zinc-500">Play #{pendingNumber} in Numbers game</p>
-                </button>
-                <button className={`h-12 rounded border-2 p-3 text-left transition ${bothGameChoice === "evenodd" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 hover:border-zinc-400"}`} onClick={() => setBothGameChoice("evenodd")}>
-                  <p className="font-bold text-sm">Even-Odd Only</p>
-                  <p className="text-xs text-zinc-500">{pendingNumber % 2 === 0 ? "EVEN" : "ODD"} bet for #{pendingNumber}</p>
-                </button>
-                <button className={`h-12 rounded border-2 p-3 text-left transition ${bothGameChoice === "both" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 hover:border-zinc-400"}`} onClick={() => setBothGameChoice("both")}>
-                  <p className="font-bold text-sm">Both Games</p>
-                  <p className="text-xs text-zinc-500">Numbers #{pendingNumber} + {pendingNumber % 2 === 0 ? "EVEN" : "ODD"} bet</p>
-                </button>
-              </div>
-            </div>
-            <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => setShowBothConfirm(false)}>{t("cancel")}</button>
-              <button className="btn-primary flex-1 h-10 text-sm" onClick={confirmGameChoice}>Continue</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {showBothModal && selectedParticipantForBoth && pendingNumber !== null ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
           <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
@@ -759,7 +711,20 @@ export default function NumbersGamePage() {
               </div>
             </div>
             <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <button className="btn-secondary flex-1 h-10 text-sm" onClick={() => setShowBothModal(false)}>{t("cancel")}</button>
+              <button className="btn-secondary flex-1 h-10 text-sm" onClick={async () => {
+                if (!selectedParticipantForBoth || pendingNumber === null) return;
+                setShowBothModal(false);
+                try {
+                  setBusy(true);
+                  await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, selectedNumber: pendingNumber }) });
+                  await load();
+                  toast.success(t("participantAdded"));
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : t("couldNotAssignNumber"));
+                } finally {
+                  setBusy(false);
+                }
+              }}>{t("cancel")}</button>
               <button className="btn-primary flex-1 h-10 text-sm" onClick={confirmBothGame}>Play Both</button>
             </div>
           </div>
