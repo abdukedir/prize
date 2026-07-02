@@ -16,25 +16,24 @@ type ReportSummary = {
 };
 
 async function buildReportSummary(tenantId: string) {
-  const [settings, numbersGames, evenOddRooms] = await Promise.all([
-    getSettings(tenantId),
+  const [numbersGames, evenOddRooms] = await Promise.all([
     prisma.gameRound.findMany({
-      where: { tenantId, gameType: "NUMBERS", status: "CLOSED" }
+      where: { tenantId, gameType: "NUMBERS", status: "CLOSED" },
+      include: { winners: true }
     }),
     prisma.evenOddRoom.findMany({
-      where: { tenantId, status: "COMPLETED" },
-      include: { bets: true }
+      where: { tenantId, status: "COMPLETED" }
     })
   ]);
 
   const numbersGameCount = numbersGames.length;
-  const winnerRate = Number(settings.winnerRate);
-  const numbersGameDeduction = numbersGames.length * winnerRate;
+  const numbersGameDeduction = numbersGames.reduce((sum, game) => {
+    return sum + game.winners.reduce((wSum, w) => wSum + Number(w.rateDeduction), 0);
+  }, 0);
 
   const evenOddGameCount = evenOddRooms.length;
   const evenOddGameDeduction = evenOddRooms.reduce((sum, room) => {
-    const totalPot = room.bets.reduce((s, bet) => s + Number(bet.amount), 0);
-    return sum + totalPot * 0.1;
+    return sum + Number(room.platformFee);
   }, 0);
 
   return { numbersGameCount, numbersGameDeduction, evenOddGameCount, evenOddGameDeduction };
