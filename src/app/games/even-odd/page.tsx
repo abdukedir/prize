@@ -101,6 +101,12 @@ export default function EvenOddGamePage() {
   const participant = state?.participants.find((item) => item.id === selectedParticipantId);
   const playedEvenOddGames = state?.rooms.filter(r => r.status === "COMPLETED").length ?? 0;
   const activeRooms = useMemo(() => (state?.rooms ?? []).filter((room) => (room.status === "WAITING" || room.status === "MATCHED") && !isRoomExpired(room)), [state]);
+  
+  const totalEven = activeRooms.reduce((sum, room) => sum + room.evenTotal, 0);
+  const totalOdd = activeRooms.reduce((sum, room) => sum + room.oddTotal, 0);
+  const isGameComplete = totalEven === totalOdd && totalEven > 0;
+  const remaining = Math.abs(totalEven - totalOdd);
+  const remainingSide = totalEven > totalOdd ? "ODD" : totalOdd > totalEven ? "EVEN" : null;
   const waitingRooms = activeRooms.filter((room) => room.status === "WAITING");
   const matchedRooms = activeRooms.filter((room) => room.status === "MATCHED");
   const selectedByParticipant = useMemo(() => {
@@ -200,13 +206,12 @@ export default function EvenOddGamePage() {
 
   async function finishGame() {
     if (!state) return;
-    if (matchedRooms.length === 0) return toast.error("Match both sides before finishing the game");
-
+    
     try {
       setBusy(true);
-      await api(`/api/even-odd/result?roundId=${state.round.id}`, { method: "POST", body: JSON.stringify({ selectedNumber: resultNumberForSide(resultSide) }) });
+      await api("/api/even-odd/finish", { method: "POST" });
       await load(true, selectedParticipantRef.current);
-      toast.success(`${resultSide} wins. House fee applied.`);
+      toast.success("Game finished!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not finish game");
     } finally {
@@ -270,7 +275,22 @@ export default function EvenOddGamePage() {
       <div className="space-y-2">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
           <div>
+            <div>
             <p className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">Played Even/Odd Games: {state ? playedEvenOddGames : "..."}</p>
+            <div className="mt-1 grid gap-2 text-xs">
+              <div className="flex items-center gap-4">
+                <span className="text-zinc-600 dark:text-zinc-300">EVEN: <span className="font-bold text-emerald-600">{money(totalEven, "ETB")}</span></span>
+                <span className="text-zinc-600 dark:text-zinc-300">ODD: <span className="font-bold text-emerald-600">{money(totalOdd, "ETB")}</span></span>
+              </div>
+              {remainingSide ? (
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  Remaining {remainingSide}: {money(remaining, "ETB")} to finish
+                </p>
+              ) : (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">Game is balanced - ready to finish</p>
+              )}
+            </div>
+          </div>
             <h1 className="text-sm font-bold">Participant</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -282,6 +302,12 @@ export default function EvenOddGamePage() {
               <RefreshCw size={14} />
               <span className="hidden sm:inline">{t("refresh")}</span>
             </button>
+            {isGameComplete && (
+              <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={finishGame} disabled={busy}>
+                <Play size={14} />
+                <span className="hidden sm:inline">Finish Game</span>
+              </button>
+            )}
           </div>
         </div>
 
