@@ -275,7 +275,6 @@ export default function EvenOddGamePage() {
       <div className="space-y-2">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
           <div>
-            <div>
             <p className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">Played Even/Odd Games: {state ? playedEvenOddGames : "..."}</p>
             <div className="mt-1 grid gap-2 text-xs">
               <div className="flex items-center gap-4">
@@ -291,244 +290,212 @@ export default function EvenOddGamePage() {
               )}
             </div>
           </div>
-            <h1 className="text-sm font-bold">Participant</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={() => setShowRegistration(true)} disabled={busy}>
-              <Plus size={14} />
-              <span className="hidden sm:inline">Add Participant</span>
+          <h1 className="text-sm font-bold">Participant</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={() => setShowRegistration(true)} disabled={busy}>
+            <Plus size={14} />
+            <span className="hidden sm:inline">Add Participant</span>
+          </button>
+          <button className="btn-secondary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={() => load()} disabled={busy}>
+            <RefreshCw size={14} />
+            <span className="hidden sm:inline">{t("refresh")}</span>
+          </button>
+          {isGameComplete && (
+            <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={finishGame} disabled={busy}>
+              <Play size={14} />
+              <span className="hidden sm:inline">Finish Game</span>
             </button>
-            <button className="btn-secondary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={() => load()} disabled={busy}>
-              <RefreshCw size={14} />
-              <span className="hidden sm:inline">{t("refresh")}</span>
-            </button>
-            {isGameComplete && (
-              <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={finishGame} disabled={busy}>
-                <Play size={14} />
-                <span className="hidden sm:inline">Finish Game</span>
+          )}
+        </div>
+      </div>
+
+      <section className="grid items-stretch gap-2 grid-cols-1 lg:grid-cols-2">
+        <div className="panel flex h-full flex-col gap-2 p-2 min-h-[300px] text-[10px]">
+          <div className="flex flex-wrap gap-1">
+            {(state?.participants ?? []).map((item) => (
+              <button
+                key={item.id}
+                className={`h-7 rounded px-2 text-[10px] font-bold transition ${selectedParticipantId === item.id ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
+                onClick={() => selectParticipant(item.id)}
+                disabled={busy}
+              >
+                {item.name}
               </button>
-            )}
+            ))}
+            {(state?.participants ?? []).length === 0 ? <span className="rounded border border-dashed border-zinc-200 px-2 py-1 text-[10px] text-zinc-400 dark:border-zinc-800">No participants</span> : null}
           </div>
+
+          <div className="grid grid-cols-2 gap-1">
+            {(["EVEN", "ODD"] as Side[]).map((side) => (
+              <button
+                key={side}
+                className={`h-8 rounded text-[11px] font-bold transition ${selectedSide === side ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
+                onClick={() => setSelectedSide(side)}
+              >
+                {t(side === "EVEN" ? "even" : "odd")}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-1 sm:grid-cols-5">
+            {amountOptions.map((amount) => (
+              <button
+                key={amount}
+                className={`h-7 rounded text-[10px] font-bold transition ${selectedAmount === amount ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
+                onClick={() => selectAmount(amount)}
+              >
+                {formatK(amount)}
+              </button>
+            ))}
+          </div>
+
+          <label className="block text-[10px] font-semibold text-zinc-600 dark:text-zinc-300">
+            Custom Bet Amount
+            <input
+              className="mt-1 h-8 w-full text-xs"
+              type="number"
+              min="500"
+              max="100000"
+              step="500"
+              value={customAmount}
+              onChange={(event) => updateCustomAmount(event.target.value)}
+            />
+          </label>
+
+          <button className="btn-primary h-8 w-full text-xs" disabled={busy} onClick={() => placeBet()}>
+            <Plus size={14} />
+            Place Bet
+          </button>
+
+          <div className="mt-auto grid grid-cols-2 gap-1">
+            {(["EVEN", "ODD"] as Side[]).map((side) => (
+              <button
+                key={`result-${side}`}
+                className={`h-7 rounded text-[10px] font-bold ${resultSide === side ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
+                onClick={() => setResultSide(side)}
+              >
+                {t(side === "EVEN" ? "even" : "odd")} {t("statusWinner")}
+              </button>
+            ))}
+          </div>
+          <button className="h-8 w-full rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 btn-primary" disabled={busy || activeRooms.length === 0} onClick={finishGame}>
+            <Play size={14} />
+            {matchedRooms.length === 0 && activeRooms.length > 0
+              ? `Finish Game (${activeRooms.reduce((sum, r) => sum + r.remaining, 0)} remaining)`
+              : "Finish Matched Game"}
+          </button>
         </div>
 
-        <section className="grid items-stretch gap-2 grid-cols-1 lg:grid-cols-2">
-          <div className="panel flex h-full flex-col gap-2 p-2 min-h-[300px] text-[10px]">
-            <div className="flex flex-wrap gap-1">
-              {(state?.participants ?? []).map((item) => (
-                <button
-                  key={item.id}
-                  className={`h-7 rounded px-2 text-[10px] font-bold transition ${selectedParticipantId === item.id ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => selectParticipant(item.id)}
-                  disabled={busy}
-                >
-                  {item.name}
-                </button>
-              ))}
-              {(state?.participants ?? []).length === 0 ? <span className="rounded border border-dashed border-zinc-200 px-2 py-1 text-[10px] text-zinc-400 dark:border-zinc-800">No participants</span> : null}
-            </div>
-
-            <div className="grid grid-cols-2 gap-1">
-              {(["EVEN", "ODD"] as Side[]).map((side) => (
-                <button
-                  key={side}
-                  className={`h-8 rounded text-[11px] font-bold transition ${selectedSide === side ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => setSelectedSide(side)}
-                >
-                  {t(side === "EVEN" ? "even" : "odd")}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-1 sm:grid-cols-5">
-              {amountOptions.map((amount) => (
-                <button
-                  key={amount}
-                  className={`h-7 rounded text-[10px] font-bold transition ${selectedAmount === amount ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => selectAmount(amount)}
-                >
-                  {formatK(amount)}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-1 sm:gap-2">
-              <div className="rounded border border-emerald-100 bg-emerald-50 px-3 py-2 text-[10px] text-zinc-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-zinc-200">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Game Room</p>
-                {matchingRoom ? (
-                  <div className="mt-1 grid grid-cols-2 gap-1">
-                    <div className="rounded bg-white/70 px-2 py-1 dark:bg-zinc-950/40">
-                      <p className="text-[9px] text-zinc-500">Room</p>
-                      <p className="font-black">#{matchingRoom.roomNumber}</p>
-                    </div>
-                    <div className="rounded bg-white/70 px-2 py-1 dark:bg-zinc-950/40">
-                      <p className="text-[9px] text-zinc-500">Remaining</p>
-                      <p className="font-black">{formatK(matchingRoom.remaining)}</p>
-                    </div>
-                    <div className="rounded bg-white/70 px-2 py-1 dark:bg-zinc-950/40 col-span-2">
-                      <p className="text-[9px] text-zinc-500">Bets Needed</p>
-                      <p className="font-black">{Math.ceil(matchingRoom.remaining / selectedAmount)} more bets</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-1 grid grid-cols-2 gap-1">
-                    <div className="rounded bg-white/70 px-2 py-1 dark:bg-zinc-950/40">
-                      <p className="text-[9px] text-zinc-500">New Room</p>
-                      <p className="font-black">{selectedSide}</p>
-                    </div>
-                    <div className="rounded bg-white/70 px-2 py-1 dark:bg-zinc-950/40">
-                      <p className="text-[9px] text-zinc-500">Target</p>
-                      <p className="font-black">{formatK(selectedAmount)}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <label className="block text-[10px] font-semibold text-zinc-600 dark:text-zinc-300">
-                Custom Bet Amount
-                <input
-                  className="mt-1 h-8 w-full text-xs"
-                  type="number"
-                  min="500"
-                  max="100000"
-                  step="500"
-                  value={customAmount}
-                  onChange={(event) => updateCustomAmount(event.target.value)}
-                />
-              </label>
-            </div>
-
-            <button className="btn-primary h-8 w-full text-xs" disabled={busy} onClick={() => placeBet()}>
-              <Plus size={14} />
-              Place Bet
-            </button>
-
-            <div className="mt-auto grid grid-cols-2 gap-1">
-              {(["EVEN", "ODD"] as Side[]).map((side) => (
-                <button
-                  key={`result-${side}`}
-                  className={`h-7 rounded text-[10px] font-bold ${resultSide === side ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => setResultSide(side)}
-                >
-                  {t(side === "EVEN" ? "even" : "odd")} {t("statusWinner")}
-                </button>
-              ))}
-            </div>
-            <button className="h-8 w-full rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 btn-primary" disabled={busy || activeRooms.length === 0} onClick={finishGame}>
-              <Play size={14} />
-              {matchedRooms.length === 0 && activeRooms.length > 0
-                ? `Finish Game (${activeRooms.reduce((sum, r) => sum + r.remaining, 0)} remaining)`
-                : "Finish Matched Game"}
-            </button>
-          </div>
-
-          <div className="panel flex h-full flex-col p-2 text-[10px] min-h-[300px] overflow-auto">
-            <div className="overflow-hidden rounded border border-zinc-200 bg-white/80 dark:border-zinc-800 dark:bg-zinc-950/40">
-              <div className="overflow-x-auto text-[9px] sm:text-[10px]">
-                <table className="w-full text-[8px] sm:text-[9px] md:text-[10px]">
-                  <thead className="table-head">
-                    <tr>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Name</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Selected</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Balance</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Status</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {(state?.participants ?? []).map((participant) => {
-                      const selected = selectedByParticipant.get(participant.id) ?? [];
-                      return (
-                        <tr key={participant.id} className={participant.id === selectedParticipantId ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50"} onClick={() => selectParticipant(participant.id)}>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2 font-medium text-[7px] sm:text-[9px] md:text-[10px]">{participant.name}</td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2">
-                            <div className="flex flex-wrap gap-0.5 sm:gap-1">
-                              {selected.length > 0 ? selected.map((item) => (
-                                <span key={item.label} className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
-                                  {item.label}
-                                  <button onClick={(e) => { e.stopPropagation(); if (participant && participant.balance <= 0) { setShowZeroBalance(participant); return; } setSelectedAmount(item.amount); setSelectedSide(item.side); }} className="text-[6px] text-emerald-600 hover:text-emerald-800">✎</button>
-                                </span>
-                              )) : <span className="text-zinc-400 text-[6px] sm:text-[8px]">-</span>}
-                            </div>
-                          </td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-[7px] sm:text-[9px] md:text-[10px]">{money(participant.balance)}</td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2">
-                            <span className={`rounded px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold ${participant.status === "DISABLED" ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"}`}>
-                              {statusLabel(participant.status)}
-                            </span>
-                          </td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2">
-                            <div className="flex flex-wrap gap-0.5 sm:gap-1">
-                              <button className="btn-secondary h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px]" onClick={(event) => { event.stopPropagation(); updateStatus(participant); }} disabled={busy} title={participant.status === "DISABLED" ? "Activate participant" : "Deactivate participant"}>
-                                {participant.status === "DISABLED" ? <UserCheck size={10} /> : <UserX size={10} />}
-                                <span className="hidden sm:inline">{participant.status === "DISABLED" ? "Activate" : "Deactivate"}</span>
-                              </button>
-                              <button className={`h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px] flex items-center gap-1 ${participant.balance <= 0 ? "btn-primary" : "btn-secondary"}`} onClick={(event) => { event.stopPropagation(); setDepositParticipant(participant); setDepositAmount(""); }} disabled={busy} title="Add funds">
-                                <Plus size={10} />
-                                <span className="hidden md:inline">Deposit</span>
-                              </button>
-                              <button className="btn-danger h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px]" onClick={(event) => { event.stopPropagation(); deleteParticipant(participant); }} disabled={busy} title="Remove permanently">
-                                <Trash2 size={10} />
-                                <span className="hidden sm:inline">Remove</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+        <div className="panel flex h-full flex-col p-2 text-[10px] min-h-[300px] overflow-auto">
+          <div className="overflow-hidden rounded border border-zinc-200 bg-white/80 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="overflow-x-auto text-[9px] sm:text-[10px]">
+              <table className="w-full text-[8px] sm:text-[9px] md:text-[10px]">
+                <thead className="table-head">
+                  <tr>
+                    <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Name</th>
+                    <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Selected</th>
+                    <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Balance</th>
+                    <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Status</th>
+                    <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {(state?.participants ?? []).map((participant) => {
+                    const selected = selectedByParticipant.get(participant.id) ?? [];
+                    return (
+                      <tr key={participant.id} className={participant.id === selectedParticipantId ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50"} onClick={() => selectParticipant(participant.id)}>
+                        <td className="px-1.5 sm:px-3 py-1 sm:py-2 font-medium text-[7px] sm:text-[9px] md:text-[10px]">{participant.name}</td>
+                        <td className="px-1.5 sm:px-3 py-1 sm:py-2">
+                          <div className="flex flex-wrap gap-0.5 sm:gap-1">
+                            {selected.length > 0 ? selected.map((item) => (
+                              <span key={item.label} className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
+                                {item.label}
+                                <button onClick={(e) => { e.stopPropagation(); if (participant && participant.balance <= 0) { setShowZeroBalance(participant); return; } setSelectedAmount(item.amount); setSelectedSide(item.side); }} className="text-[6px] text-emerald-600 hover:text-emerald-800">✎</button>
+                              </span>
+                            )) : <span className="text-zinc-400 text-[6px] sm:text-[8px]">-</span>}
+                          </div>
+                        </td>
+                        <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-[7px] sm:text-[9px] md:text-[10px]">{money(participant.balance)}</td>
+                        <td className="px-1.5 sm:px-3 py-1 sm:py-2">
+                          <span className={`rounded px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold ${participant.status === "DISABLED" ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"}`}>
+                            {statusLabel(participant.status)}
+                          </span>
+                        </td>
+                        <td className="px-1.5 sm:px-3 py-1 sm:py-2">
+                          <div className="flex flex-wrap gap-0.5 sm:gap-1">
+                            <button className="btn-secondary h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px]" onClick={(event) => { event.stopPropagation(); updateStatus(participant); }} disabled={busy} title={participant.status === "DISABLED" ? "Activate participant" : "Deactivate participant"}>
+                              {participant.status === "DISABLED" ? <UserCheck size={10} /> : <UserX size={10} />}
+                              <span className="hidden sm:inline">{participant.status === "DISABLED" ? "Activate" : "Deactivate"}</span>
+                            </button>
+                            <button className={`h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px] flex items-center gap-1 ${participant.balance <= 0 ? "btn-primary" : "btn-secondary"}`} onClick={(event) => { event.stopPropagation(); setDepositParticipant(participant); setDepositAmount(""); }} disabled={busy} title="Add funds">
+                              <Plus size={10} />
+                              <span className="hidden md:inline">Deposit</span>
+                            </button>
+                            <button className="btn-danger h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px]" onClick={(event) => { event.stopPropagation(); deleteParticipant(participant); }} disabled={busy} title="Remove permanently">
+                              <Trash2 size={10} />
+                              <span className="hidden sm:inline">Remove</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {showExistingBetPrompt && participant && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-            <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
-              <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Existing Selection</p>
-                <h2 className="mt-1 text-lg font-bold text-zinc-900 dark:text-white">{participant.name} already selected</h2>
-              </div>
-              <div className="space-y-3 p-4 text-sm text-zinc-700 dark:text-zinc-300">
-                <p>Current selection: <b>{selectedParticipantBets.join(", ")}</b></p>
-                <p>Choose whether to add this new bet or go back and change the amount/side.</p>
-              </div>
-              <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                <button className="btn-secondary flex-1 h-9 text-xs font-semibold" disabled={busy} onClick={() => setShowExistingBetPrompt(false)}>Change</button>
-                <button className="btn-primary flex-1 h-9 text-xs font-semibold" disabled={busy} onClick={() => { setShowExistingBetPrompt(false); placeBet(true); }}>
-                  <Plus size={14} />
-                  Add Bet
-                </button>
-              </div>
+      {showExistingBetPrompt && participant && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
+            <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Existing Selection</p>
+              <h2 className="mt-1 text-lg font-bold text-zinc-900 dark:text-white">{participant.name} already selected</h2>
             </div>
-          </div>
-        )}
-
-        {showRegistration ? (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-            <div className="panel w-full max-w-[360px] p-3 shadow-xl">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-bold">Participant Registration</h2>
-                <button type="button" className="btn-secondary !h-7 !px-2" onClick={() => setShowRegistration(false)} disabled={busy}>
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="mt-3 grid gap-2">
-                <label className="block text-xs font-medium">
-                  Participant Name
-                  <input className="mt-1 h-8 text-xs" placeholder="Abebe Kebede" value={newParticipantName} onChange={(event) => setNewParticipantName(event.target.value)} />
-                </label>
-                <label className="block text-xs font-medium">
-                  Amount
-                  <input className="mt-1 h-8 text-xs" type="number" step="1" value={newParticipantAmount} onChange={(event) => setNewParticipantAmount(event.target.value)} />
-                </label>
-              </div>
-              <button className="btn-primary mt-3 h-8 w-full text-xs" disabled={busy} onClick={addParticipant}>
+            <div className="space-y-3 p-4 text-sm text-zinc-700 dark:text-zinc-300">
+              <p>Current selection: <b>{selectedParticipantBets.join(", ")}</b></p>
+              <p>Choose whether to add this new bet or go back and change the amount/side.</p>
+            </div>
+            <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <button className="btn-secondary flex-1 h-9 text-xs font-semibold" disabled={busy} onClick={() => setShowExistingBetPrompt(false)}>Change</button>
+              <button className="btn-primary flex-1 h-9 text-xs font-semibold" disabled={busy} onClick={() => { setShowExistingBetPrompt(false); placeBet(true); }}>
                 <Plus size={14} />
-                Add Participant
+                Add Bet
               </button>
             </div>
           </div>
-        ) : null}
+        </div>
+      )}
+
+      {showRegistration ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <div className="panel w-full max-w-[360px] p-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold">Participant Registration</h2>
+              <button type="button" className="btn-secondary !h-7 !px-2" onClick={() => setShowRegistration(false)} disabled={busy}>
+                <X size={14} />
+              </button>
+            </div>
+            <div className="mt-3 grid gap-2">
+              <label className="block text-xs font-medium">
+                Participant Name
+                <input className="mt-1 h-8 text-xs" placeholder="Abebe Kebede" value={newParticipantName} onChange={(event) => setNewParticipantName(event.target.value)} />
+              </label>
+              <label className="block text-xs font-medium">
+                Amount
+                <input className="mt-1 h-8 text-xs" type="number" step="1" value={newParticipantAmount} onChange={(event) => setNewParticipantAmount(event.target.value)} />
+              </label>
+            </div>
+            <button className="btn-primary mt-3 h-8 w-full text-xs" disabled={busy} onClick={addParticipant}>
+              <Plus size={14} />
+              Add Participant
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {showZeroBalance ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
@@ -554,44 +521,43 @@ export default function EvenOddGamePage() {
       ) : null}
 
       {depositParticipant ? (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-            <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
-              <div className="border-b border-zinc-200 bg-emerald-50 px-4 py-3 dark:border-zinc-800 dark:bg-emerald-950/30">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Add Deposit</p>
-                <h2 className="mt-1 text-lg font-bold text-zinc-900 dark:text-white">Deposit for {depositParticipant.name}</h2>
-              </div>
-              <div className="space-y-4 p-4">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">Current Balance</label>
-                  <div className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-bold text-zinc-900 dark:bg-zinc-800 dark:text-white">
-                    {money(depositParticipant.balance)}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">Deposit Amount</label>
-                  <input
-                    autoFocus
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="1000"
-                    value={depositAmount}
-                    onChange={(event) => setDepositAmount(event.target.value)}
-                    className="h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm dark:border-zinc-800 dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:outline-none"
-                  />
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <div className="panel w-full max-w-[380px] overflow-hidden shadow-xl">
+            <div className="border-b border-zinc-200 bg-emerald-50 px-4 py-3 dark:border-zinc-800 dark:bg-emerald-950/30">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Add Deposit</p>
+              <h2 className="mt-1 text-lg font-bold text-zinc-900 dark:text-white">Deposit for {depositParticipant.name}</h2>
+            </div>
+            <div className="space-y-4 p-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">Current Balance</label>
+                <div className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-bold text-zinc-900 dark:bg-zinc-800 dark:text-white">
+                  {money(depositParticipant.balance)}
                 </div>
               </div>
-              <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                <button className="btn-secondary flex-1 h-10 text-sm font-semibold" disabled={busy} onClick={() => { setDepositParticipant(null); setPendingBet(null); }}>Cancel</button>
-                <button className="btn-primary flex-1 h-10 text-sm font-semibold" disabled={busy} onClick={addDeposit}>
-                  <Plus size={16} />
-                  Add Funds
-                </button>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">Deposit Amount</label>
+                <input
+                  autoFocus
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="1000"
+                  value={depositAmount}
+                  onChange={(event) => setDepositAmount(event.target.value)}
+                  className="h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm dark:border-zinc-800 dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:outline-none"
+                />
               </div>
             </div>
+            <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <button className="btn-secondary flex-1 h-10 text-sm font-semibold" disabled={busy} onClick={() => { setDepositParticipant(null); setPendingBet(null); }}>Cancel</button>
+              <button className="btn-primary flex-1 h-10 text-sm font-semibold" disabled={busy} onClick={addDeposit}>
+                <Plus size={16} />
+                Add Funds
+              </button>
+            </div>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }
