@@ -713,10 +713,14 @@ async function assign(participant: Participant, selectedNumber: number) {
             <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
               <button className="btn-secondary flex-1 h-10 text-sm" onClick={async () => {
                 if (!selectedParticipantForBoth || pendingNumber === null) return;
+                const participantId = selectedParticipantForBoth.id;
+                const number = pendingNumber;
                 setShowBothModal(false);
+                setSelectedParticipantForBoth(null);
+                setPendingNumber(null);
                 try {
                   setBusy(true);
-                  await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, selectedNumber: pendingNumber }) });
+                  await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId, selectedNumber: number }) });
                   await load();
                   toast.success(t("participantAdded"));
                 } catch (error) {
