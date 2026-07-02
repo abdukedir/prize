@@ -56,7 +56,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const existing = await prisma.participant.findFirst({ where: { id: params.id, tenantId: user.tenantId } });
     if (!existing) throw new Response("Participant not found", { status: 404 });
 
-await prisma.$transaction([
+    await prisma.$transaction([
       prisma.entry.deleteMany({ where: { tenantId: user.tenantId, participantId: params.id } }),
       prisma.winner.deleteMany({ where: { tenantId: user.tenantId, participantId: params.id } }),
       prisma.evenOddBet.deleteMany({ where: { tenantId: user.tenantId, participantId: params.id } }),
