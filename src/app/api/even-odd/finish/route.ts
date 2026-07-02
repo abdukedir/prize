@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
     
     const rooms = await prisma.evenOddRoom.findMany({
-      where: { roundId: round.id, status: { in: ["WAITING", "MATCHED"] } },
+      where: { roundId: round.id, status: { in: ["WAITING", "MATCHED"] }, expiresAt: { gt: new Date() } },
       include: { bets: true }
     });
     
