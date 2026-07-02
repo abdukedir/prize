@@ -135,12 +135,12 @@ export async function refundExpiredEvenOddRooms(tenantId: string) {
 export async function processEvenOddRoundResult(tenantId: string, roundId: string, selectedNumber: number, employee: { id: string; name: string }) {
   const winningSide = sideForNumber(selectedNumber);
 
-  return prisma.$transaction(async (tx) => {
+return prisma.$transaction(async (tx) => {
     const round = await tx.evenOddRound.findFirst({
       where: { id: roundId, tenantId },
       include: {
         rooms: {
-          where: { status: "MATCHED" },
+          where: { status: { in: ["WAITING", "MATCHED"] } },
           include: { bets: true }
         }
       }

@@ -15,7 +15,14 @@ export async function POST(req: NextRequest) {
       orderBy: { number: "desc" }
     });
     
-    if (!round) throw new Response("No open Even-Odd round found", { status: 404 });
+    if (!round) {
+      const latest = await prisma.evenOddRound.findFirst({ 
+        where: { tenantId: user.tenantId }, 
+        orderBy: { number: "desc" } 
+      });
+      if (!latest) throw new Response("No Even-Odd round found", { status: 404 });
+      throw new Response(`Round already published. Create a new round to finish.`, { status: 400 });
+    }
     
     const rooms = await prisma.evenOddRoom.findMany({
       where: { roundId: round.id },
