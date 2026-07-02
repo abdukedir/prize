@@ -8,6 +8,36 @@ import { Language } from "@/lib/i18n";
 
 type MoneyFormatter = (value: number) => string;
 
+type ReportSummary = {
+  numbersGameCount: number;
+  numbersGameDeduction: number;
+  evenOddGameCount: number;
+  evenOddGameDeduction: number;
+};
+
+async function buildReportSummary(tenantId: string) {
+  const [numbersGames, evenOddRooms] = await Promise.all([
+    prisma.gameRound.findMany({
+      where: { tenantId, gameType: "NUMBERS", status: "CLOSED" }
+    }),
+    prisma.evenOddRoom.findMany({
+      where: { tenantId, status: "COMPLETED" },
+      include: { bets: true }
+    })
+  ]);
+
+  const numbersGameCount = numbersGames.length;
+  const numbersGameDeduction = 0;
+
+  const evenOddGameCount = evenOddRooms.length;
+  const evenOddGameDeduction = evenOddRooms.reduce((sum, room) => {
+    const totalPot = room.bets.reduce((s, bet) => s + Number(bet.amount), 0);
+    return sum + totalPot * 0.1;
+  }, 0);
+
+  return { numbersGameCount, numbersGameDeduction, evenOddGameCount, evenOddGameDeduction };
+}
+
 async function buildPlayerReports(tenantId: string, playerFilter = "", language: Language = "en") {
   const playerWhere = playerFilter
     ? { participant: { fullName: { contains: playerFilter, mode: "insensitive" as const } } }
@@ -168,9 +198,12 @@ export async function GET(req: NextRequest) {
     const format = req.nextUrl.searchParams.get("format");
     const player = req.nextUrl.searchParams.get("player")?.trim() ?? "";
     const settings = await getSettings(user.tenantId);
-    const playerReports = await buildPlayerReports(user.tenantId, player, settings.language as Language);
+    const [summary, playerReports] = await Promise.all([
+      buildReportSummary(user.tenantId),
+      buildPlayerReports(user.tenantId, player, settings.language as Language)
+    ]);
 
-    if (!format) return NextResponse.json({ playerReports });
+    if (!format) return NextResponse.json({ playerReports, summary });
 
     const rows = playerReports.map((row) => ({ Report: row.reportLine }));
     const csv = toCsv(rows);

@@ -5,7 +5,7 @@ import { Download, FileSpreadsheet, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { useMe } from "@/components/auth-guard";
-import { api } from "@/lib/client";
+import { api, money } from "@/lib/client";
 import { useI18n } from "@/lib/i18n";
 
 type PlayerReport = {
@@ -21,18 +21,27 @@ type PlayerReport = {
   reportLine: string;
 };
 
+type ReportSummary = {
+  numbersGameCount: number;
+  numbersGameDeduction: number;
+  evenOddGameCount: number;
+  evenOddGameDeduction: number;
+};
+
 export default function ReportsPage() {
   const { user, loading } = useMe();
   const { t } = useI18n();
   const [playerReports, setPlayerReports] = useState<PlayerReport[]>([]);
+  const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
   useEffect(() => {
-    api<{ playerReports: PlayerReport[] }>("/api/reports")
+    api<{ playerReports: PlayerReport[]; summary: ReportSummary }>("/api/reports")
       .then((data) => {
         setPlayerReports(data.playerReports);
+        setSummary(data.summary);
       })
       .catch(() => toast.error(t("couldNotLoadReports")));
   }, [t]);
@@ -78,6 +87,21 @@ export default function ReportsPage() {
             <a className="btn-secondary" href={`/api/reports?format=pdf${exportPlayerQuery}`}><Printer size={16} />PDF</a>
           </div>
         </div>
+
+        {summary ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="panel p-4">
+              <p className="text-sm font-medium text-zinc-500">Numbers Games</p>
+              <p className="text-2xl font-bold text-emerald-600">{summary.numbersGameCount} games</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">Deduction: {money(summary.numbersGameDeduction, "ETB")}</p>
+            </div>
+            <div className="panel p-4">
+              <p className="text-sm font-medium text-zinc-500">Even-Odd Games</p>
+              <p className="text-2xl font-bold text-emerald-600">{summary.evenOddGameCount} games</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">Deduction (10%): {money(summary.evenOddGameDeduction, "ETB")}</p>
+            </div>
+          </div>
+        ) : null}
 
         <section className="panel p-4">
           <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-200">
