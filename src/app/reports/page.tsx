@@ -93,7 +93,7 @@ export default function ReportsPage() {
             <div className="panel p-4">
               <p className="text-sm font-medium text-zinc-500">Numbers Games</p>
               <p className="text-2xl font-bold text-emerald-600">{summary.numbersGameCount} games</p>
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">Total Deduction: {money(summary.numbersGameDeduction, "ETB")}</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">Deduction: {money(summary.numbersGameDeduction, "ETB")} (winner rate × games)</p>
             </div>
             <div className="panel p-4">
               <p className="text-sm font-medium text-zinc-500">Even-Odd Games</p>
