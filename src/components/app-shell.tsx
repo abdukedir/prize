@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, ChevronDown, Gamepad2, LogOut, Moon, Settings, Shield, Split, Sun } from "lucide-react";
+import { BarChart3, ChevronDown, LogOut, Moon, Settings, Shield, Split, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ApiUser, api } from "@/lib/client";
@@ -10,7 +10,6 @@ import { Language, useI18n } from "@/lib/i18n";
 import { activeLanguages } from "@/lib/language-options";
 
 const nav = [
-  { href: "/dashboard", labelKey: "games", icon: Gamepad2 },
   { href: "/games/numbers", labelKey: "numbers", icon: Shield },
   { href: "/games/even-odd", labelKey: "evenOdd", icon: Split }
 ];
@@ -71,13 +70,9 @@ export function AppShell({ user, children }: { user: ApiUser; children: React.Re
             <p className="text-sm font-semibold">{user.name}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link href="/dashboard" className="mr-2 flex items-center gap-2 rounded-md px-2 py-1.5">
-              <div className="grid h-9 w-9 place-items-center rounded-md bg-emerald-500 text-white shadow-sm">
+            <Link href="/games/numbers" className="mr-2 flex items-center gap-2 rounded-md px-2 py-1.5">
+<div className="grid h-9 w-9 place-items-center rounded-md bg-emerald-500 text-white shadow-sm">
                 <Shield size={18} />
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-bold">EthioBet Ops</p>
-                <p className="text-xs text-zinc-500">{t("lotteryManagement")}</p>
               </div>
             </Link>
             <div className="relative">
