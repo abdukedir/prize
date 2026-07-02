@@ -29,7 +29,7 @@ export async function getSettings(tenantId: string) {
       ticketPrice: new Prisma.Decimal(200),
       firstPrize: new Prisma.Decimal(1000),
       secondPrize: new Prisma.Decimal(200),
-      winnerRate: new Prisma.Decimal(0),
+      winnerRate: new Prisma.Decimal(200),
       currency: "ETB",
       language: "en",
       theme: "light"

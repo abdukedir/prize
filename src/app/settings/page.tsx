@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const { t } = useI18n();
   const form = useForm<FormData>({
     resolver: zodResolver(settingsSchema),
-    defaultValues: { ticketPrice: 200, firstPrize: 1000, secondPrize: 200, winnerRate: 0, currency: "ETB", language: "en", theme: "light", adminFeePercentage: 10 }
+    defaultValues: { ticketPrice: 200, firstPrize: 1000, secondPrize: 200, winnerRate: 200, currency: "ETB", language: "en", theme: "light", adminFeePercentage: 10 }
   });
   const ticketPrice = form.watch("ticketPrice");
   const winnerRate = form.watch("winnerRate");
