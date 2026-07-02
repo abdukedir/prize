@@ -321,6 +321,7 @@ async function assign(participant: Participant, selectedNumber: number) {
             <button className={`h-7 px-2 text-[11px] rounded font-semibold transition ${bothGameMode ? "bg-purple-500 text-white" : "border border-zinc-200 bg-white hover:bg-purple-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`} onClick={() => setBothGameMode(!bothGameMode)}>
               {bothGameMode ? "Both ON" : "Both"}
             </button>
+            <button className="h-7 px-2 text-[11px] rounded font-semibold border border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900" onClick={() => { setBothGameMode(false); setBothGameAmount(500); setFirstPrizeNumber(null); setSecondPrizeNumber(null); }}>Reset</button>
           </div>
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs flex-1 sm:flex-initial" onClick={() => setShowRegistration(true)}><Plus size={14} /><span className="hidden sm:inline">{t("addParticipant")}</span></button>
@@ -709,7 +710,6 @@ async function assign(participant: Participant, selectedNumber: number) {
                 <p className="text-xs text-purple-700 dark:text-purple-300">Numbers ticket: {money(state?.settings.ticketPrice ?? 200, state?.settings.currency)}</p>
                 <p className="text-xs text-purple-700 dark:text-purple-300">Even-Odd bet: {money(bothGameAmount, state?.settings.currency)}</p>
               </div>
-              <button className="text-xs text-emerald-600 hover:text-emerald-800 underline" onClick={() => setBothGameAmount(500)}>Reset to 500</button>
             </div>
             <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
               <button className="btn-secondary flex-1 h-10 text-sm" onClick={async () => {
