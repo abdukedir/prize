@@ -345,6 +345,7 @@ export default function EvenOddGamePage() {
                 onChange={(event) => updateCustomAmount(event.target.value)}
               />
             </label>
+            <button className="text-xs text-emerald-600 hover:text-emerald-800 underline" onClick={() => { setSelectedAmount(5000); setCustomAmount("5000"); }}>Reset to 5K</button>
 
             <button className="btn-primary h-8 w-full text-xs" disabled={busy} onClick={() => placeBet()}>
               <Plus size={14} />
