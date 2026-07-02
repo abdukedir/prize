@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
 import { processEvenOddRoundResult } from "@/lib/games/even-odd";
+import { sideForNumber } from "@/lib/games/even-odd";
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,16 +28,16 @@ export async function POST(req: NextRequest) {
       sum + room.bets.filter(b => b.side === "ODD").reduce((s, b) => s + Number(b.amount), 0), 0);
     
     if (evenTotal !== oddTotal) {
-      throw new Response(`Cannot finish: EVEN (${evenTotal}) and ODD (${oddTotal}) are not equal`, { status: 400 });
+      throw new Response(`Cannot finish: EVEN (${evenTotal}) and ODD (${oddTotal}) are not equal. Remaining: ${Math.abs(evenTotal - oddTotal)}`, { status: 400 });
     }
     
-    const winningSide = evenTotal > 0 ? "EVEN" : "ODD";
-    const selectedNumber = winningSide === "EVEN" ? 2 : 1;
+    const selectedNumber = evenTotal > 0 ? 2 : 1;
+    const winningSide = sideForNumber(selectedNumber);
     
     await processEvenOddRoundResult(user.tenantId, round.id, selectedNumber, { id: user.id, name: user.name });
     
     await logActivity(user.id, user.tenantId, `Finished Even/Odd game - ${winningSide} wins`);
-    return ok({ success: true });
+    return ok({ success: true, winningSide, total: evenTotal });
   } catch (error) {
     return handleError(error);
   }
