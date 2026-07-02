@@ -99,7 +99,7 @@ export default function EvenOddGamePage() {
   }, []);
 
   const participant = state?.participants.find((item) => item.id === selectedParticipantId);
-  const playedEvenOddGames = state?.latestResult ? Math.max(0, state.latestResult.number - 1057) : 0;
+  const playedEvenOddGames = state?.rooms.filter(r => r.status === "COMPLETED").length ?? 0;
   const activeRooms = useMemo(() => (state?.rooms ?? []).filter((room) => (room.status === "WAITING" || room.status === "MATCHED") && !isRoomExpired(room)), [state]);
   const waitingRooms = activeRooms.filter((room) => room.status === "WAITING");
   const matchedRooms = activeRooms.filter((room) => room.status === "MATCHED");
