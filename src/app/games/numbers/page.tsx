@@ -709,6 +709,7 @@ async function assign(participant: Participant, selectedNumber: number) {
                 <p className="text-xs text-purple-700 dark:text-purple-300">Numbers ticket: {money(state?.settings.ticketPrice ?? 200, state?.settings.currency)}</p>
                 <p className="text-xs text-purple-700 dark:text-purple-300">Even-Odd bet: {money(bothGameAmount, state?.settings.currency)}</p>
               </div>
+              <button className="text-xs text-emerald-600 hover:text-emerald-800 underline" onClick={() => setBothGameAmount(500)}>Reset to 500</button>
             </div>
             <div className="flex gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
               <button className="btn-secondary flex-1 h-10 text-sm" onClick={async () => {
