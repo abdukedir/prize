@@ -716,11 +716,11 @@ async function assign(participant: Participant, selectedNumber: number) {
                 const participantId = selectedParticipantForBoth.id;
                 const number = pendingNumber;
                 setShowBothModal(false);
-                setSelectedParticipantForBoth(null);
-                setPendingNumber(null);
                 try {
                   setBusy(true);
                   await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId, selectedNumber: number }) });
+                  setSelectedParticipantForBoth(null);
+                  setPendingNumber(null);
                   await load();
                   toast.success(t("participantAdded"));
                 } catch (error) {
