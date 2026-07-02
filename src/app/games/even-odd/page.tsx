@@ -65,9 +65,9 @@ export default function EvenOddGamePage() {
   const [pendingBet, setPendingBet] = useState<{ participant: Participant; amount: number; side: Side } | null>(null);
 
   function selectParticipant(participantId: string) {
-    selectedParticipantRef.current = participantId;
-    setSelectedParticipantId(participantId);
-    if (typeof window !== "undefined") window.localStorage.setItem(selectedParticipantStorageKey, participantId);
+    selectedParticipantRef.current = selectedParticipantId === participantId ? "" : participantId;
+    setSelectedParticipantId(selectedParticipantId === participantId ? "" : participantId);
+    if (typeof window !== "undefined") window.localStorage.setItem(selectedParticipantStorageKey, selectedParticipantId === participantId ? "" : participantId);
   }
 
   async function load(silent = false, preferredParticipantId = selectedParticipantRef.current) {
