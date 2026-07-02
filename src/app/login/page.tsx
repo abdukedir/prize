@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       await api("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
       toast.success(t("welcomeBack"));
-      router.replace(params.get("next") || "/dashboard");
+      router.replace(params.get("next") || "/games/numbers");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("loginFailed"));
     }
