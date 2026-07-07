@@ -300,153 +300,131 @@ export default function EvenOddGamePage() {
           </div>
         </div>
 
-        <section className="grid items-stretch gap-2 grid-cols-1 lg:grid-cols-2">
-          <div className="panel flex h-full flex-col gap-2 p-2 min-h-[300px] text-[10px]">
-            <div className="flex flex-wrap gap-1">
-              {(state?.participants ?? []).map((item) => (
-                <button
-                  key={item.id}
-                  className={`h-7 rounded px-2 text-[10px] font-bold transition ${selectedParticipantId === item.id ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => selectParticipant(item.id)}
-                  disabled={busy}
-                >
-                  {item.name}
-                </button>
-              ))}
-              {(state?.participants ?? []).length === 0 ? <span className="rounded border border-dashed border-zinc-200 px-2 py-1 text-[10px] text-zinc-400 dark:border-zinc-800">No participants</span> : null}
-            </div>
-
-            <div className="mt-2 rounded border border-emerald-100 bg-emerald-50 px-3 py-2 text-[10px] text-zinc-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-zinc-200">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Played Even/Odd Games: {state ? playedEvenOddGames : "..."}</p>
-              <div className="mt-1 flex items-center gap-4">
-                <span className="text-zinc-600 dark:text-zinc-300">EVEN: <span className="font-bold text-emerald-600">{money(totalEven, "ETB")}</span></span>
-                <span className="text-zinc-600 dark:text-zinc-300">ODD: <span className="font-bold text-emerald-600">{money(totalOdd, "ETB")}</span></span>
-              </div>
-              {remainingSide ? (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">Remaining {remainingSide}: {money(remaining, "ETB")} to finish</p>
-              ) : (
-                <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">Game is balanced - ready to finish</p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-1">
-              {(["EVEN", "ODD"] as Side[]).map((side) => (
-                <button
-                  key={side}
-                  className={`h-8 rounded text-[11px] font-bold transition ${selectedSide === side ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => setSelectedSide(side)}
-                >
-                  {t(side === "EVEN" ? "even" : "odd")}
-                </button>
-              ))}
-            </div>
-
-            <button className="btn-primary h-8 w-full text-xs" disabled={busy} onClick={() => placeBet()}>
-              <Plus size={14} />
-              Place Bet
-            </button>
-
-            <div className="mt-auto grid grid-cols-2 gap-1">
-              {(["EVEN", "ODD"] as Side[]).map((side) => (
-                <button
-                  key={`result-${side}`}
-                  className={`h-7 rounded text-[10px] font-bold ${resultSide === side ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => setResultSide(side)}
-                >
-                  {t(side === "EVEN" ? "even" : "odd")} {t("statusWinner")}
-                </button>
-              ))}
-            </div>
-
-            <label className="block text-[10px] font-semibold text-zinc-600 dark:text-zinc-300">
-              Bet Amount
-              <input
-                className="mt-1 h-8 w-full text-xs"
-                type="number"
-                min="500"
-                max="100000"
-                step="500"
-                value={customAmount}
-                onChange={(event) => updateCustomAmount(event.target.value)}
-              />
-            </label>
-
-            <button className="btn-primary h-8 w-full text-xs" disabled={busy} onClick={() => placeBet()}>
-              <Plus size={14} />
-              Place Bet
-            </button>
-          </div>
-
-          <div className="panel flex h-full flex-col p-2 text-[10px] min-h-[300px] overflow-auto">
-            <div className="overflow-hidden rounded border border-zinc-200 bg-white/80 dark:border-zinc-800 dark:bg-zinc-950/40">
-              <div className="overflow-x-auto text-[9px] sm:text-[10px]">
-                <table className="w-full text-[8px] sm:text-[9px] md:text-[10px]">
-                  <thead className="table-head">
-                    <tr>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Name</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Selected</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Balance</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">House Fee</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {(state?.participants ?? []).map((participant) => {
-                      const selected = selectedByParticipant.get(participant.id) ?? [];
-                      return (
-                        <tr key={participant.id} className={participant.id === selectedParticipantId ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50"} onClick={() => selectParticipant(participant.id)}>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2 font-medium text-[7px] sm:text-[9px] md:text-[10px]">{participant.name}</td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2">
-                            <div className="flex flex-wrap gap-0.5 sm:gap-1">
-                              {selected.length > 0 ? selected.map((item) => (
-                                <span key={item.label} className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
-                                  {item.label}
-                                  <button onClick={(e) => { e.stopPropagation(); if (participant && participant.balance <= 0) { setShowZeroBalance(participant); return; } setSelectedAmount(item.amount); setSelectedSide(item.side); }} className="text-[6px] text-emerald-600 hover:text-emerald-800">✎</button>
-                                </span>
-                              )) : <span className="text-zinc-400 text-[6px] sm:text-[8px]">-</span>}
-                            </div>
-                          </td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-[7px] sm:text-[9px] md:text-[10px]">{money(participant.balance)}</td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2">
-                            {participant.status === "WINNER" ? (
-                              <span className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                                {money(
-                                  calculateWinnerFee(
-                                    state?.rooms ?? [],
-                                    (state?.round?.winningSide ?? state?.latestResult?.winningSide ?? "EVEN") as Side,
-                                    houseFeePercentage
-                                  ),
-                                  "ETB"
-                                )}
+        <section className="panel p-4">
+          <div className="overflow-hidden rounded border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-zinc-100 dark:bg-zinc-900">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">NAME</th>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">BET AMOUNT</th>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">EVEN / ODD</th>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">PLACE BET</th>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">SELECTED</th>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">BALANCE</th>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">STATUS</th>
+                    <th className="px-3 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {(state?.participants ?? []).map((participant) => {
+                    const selected = selectedByParticipant.get(participant.id) ?? [];
+                    return (
+                      <tr key={participant.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                        <td className="px-3 py-3 font-medium text-zinc-900 dark:text-zinc-100">{participant.name}</td>
+                        <td className="px-3 py-3">
+                          <input
+                            type="number"
+                            min="500"
+                            max="100000"
+                            step="500"
+                            value={selectedParticipantId === participant.id ? customAmount : "5000"}
+                            onChange={(e) => {
+                              if (selectedParticipantId === participant.id) updateCustomAmount(e.target.value);
+                              else selectParticipant(participant.id);
+                            }}
+                            onClick={() => selectParticipant(participant.id)}
+                            className="w-24 rounded border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                          />
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex gap-1">
+                            {(["EVEN", "ODD"] as Side[]).map((side) => (
+                              <button
+                                key={side}
+                                className={`rounded px-2 py-1 text-xs font-semibold transition ${selectedParticipantId === participant.id && selectedSide === side ? "bg-emerald-500 text-white" : "border border-zinc-300 bg-white hover:bg-emerald-50 dark:border-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800"}`}
+                                onClick={() => {
+                                  selectParticipant(participant.id);
+                                  setSelectedSide(side);
+                                }}
+                              >
+                                {side}
+                              </button>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <button
+                            className="btn-primary flex items-center gap-1 px-3 py-1.5 text-xs font-semibold"
+                            onClick={() => {
+                              selectParticipant(participant.id);
+                              placeBet();
+                            }}
+                            disabled={busy}
+                          >
+                            <Plus size={14} />
+                            Place bet
+                          </button>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {selected.length > 0 ? selected.map((item) => (
+                              <span key={item.label} className="rounded bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                {item.label}
                               </span>
-                            ) : (
-                              <span className="rounded px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold">
-                                -
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-1.5 sm:px-3 py-1 sm:py-2">
-                            <div className="flex flex-wrap gap-0.5 sm:gap-1">
-                              <button className="btn-secondary h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px]" onClick={(event) => { event.stopPropagation(); updateStatus(participant); }} disabled={busy} title={participant.status === "DISABLED" ? "Activate participant" : "Deactivate participant"}>
-                                {participant.status === "DISABLED" ? <UserCheck size={10} /> : <UserX size={10} />}
-                                <span className="hidden sm:inline">{participant.status === "DISABLED" ? "Activate" : "Deactivate"}</span>
-                              </button>
-                              <button className={`h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px] flex items-center gap-1 ${participant.balance <= 0 ? "btn-primary" : "btn-secondary"}`} onClick={(event) => { event.stopPropagation(); setDepositParticipant(participant); setDepositAmount(""); }} disabled={busy} title="Add funds">
-                                <Plus size={10} />
-                                <span className="hidden md:inline">Deposit</span>
-                              </button>
-                              <button className="btn-danger h-5 sm:h-7 !px-1 sm:!px-2 text-[6px] sm:text-[8px] md:text-[9px]" onClick={(event) => { event.stopPropagation(); deleteParticipant(participant); }} disabled={busy} title="Remove permanently">
-                                <Trash2 size={10} />
-                                <span className="hidden sm:inline">Remove</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            )) : <span className="text-zinc-400">-</span>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 font-medium text-zinc-900 dark:text-zinc-100">{money(participant.balance)}</td>
+                        <td className="px-3 py-3">
+                          {participant.status === "WINNER" ? (
+                            <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                              Winner
+                            </span>
+                          ) : participant.status === "LOST" ? (
+                            <span className="rounded bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+                              Lost
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex gap-1">
+                            <button
+                              className="rounded bg-zinc-200 p-1.5 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                              onClick={() => updateStatus(participant)}
+                              disabled={busy}
+                              title="Toggle status"
+                            >
+                              {participant.status === "DISABLED" ? <UserCheck size={14} /> : <UserX size={14} />}
+                            </button>
+                            <button
+                              className="rounded bg-zinc-200 p-1.5 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                              onClick={() => {
+                                setDepositParticipant(participant);
+                                setDepositAmount("");
+                              }}
+                              disabled={busy}
+                              title="Add deposit"
+                            >
+                              <Plus size={14} />
+                            </button>
+                            <button
+                              className="rounded bg-red-200 p-1.5 hover:bg-red-300 dark:bg-red-900 dark:hover:bg-red-800"
+                              onClick={() => deleteParticipant(participant)}
+                              disabled={busy}
+                              title="Delete participant"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
