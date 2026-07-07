@@ -323,19 +323,41 @@ export default function EvenOddGamePage() {
                       <tr key={participant.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                         <td className="px-3 py-3 font-medium text-zinc-900 dark:text-zinc-100">{participant.name}</td>
                         <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            min="500"
-                            max="100000"
-                            step="500"
-                            value={selectedParticipantId === participant.id ? customAmount : "5000"}
-                            onChange={(e) => {
-                              if (selectedParticipantId === participant.id) updateCustomAmount(e.target.value);
-                              else selectParticipant(participant.id);
-                            }}
-                            onClick={() => selectParticipant(participant.id)}
-                            className="w-24 rounded border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950"
-                          />
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="500"
+                              max="100000"
+                              step="500"
+                              value={selectedParticipantId === participant.id ? customAmount : "5000"}
+                              onChange={(e) => {
+                                if (selectedParticipantId === participant.id) updateCustomAmount(e.target.value);
+                                else selectParticipant(participant.id);
+                              }}
+                              onClick={() => selectParticipant(participant.id)}
+                              className="w-24 rounded border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                            />
+                            <select
+                              className="rounded border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  selectParticipant(participant.id);
+                                  updateCustomAmount(e.target.value);
+                                }
+                              }}
+                              defaultValue=""
+                            >
+                              <option value="">Quick amount</option>
+                              <option value="500">500</option>
+                              <option value="1000">1K</option>
+                              <option value="2000">2K</option>
+                              <option value="5000">5K</option>
+                              <option value="10000">10K</option>
+                              <option value="20000">20K</option>
+                              <option value="50000">50K</option>
+                              <option value="100000">100K</option>
+                            </select>
+                          </div>
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex gap-1">
