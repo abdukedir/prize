@@ -410,7 +410,14 @@ export default function EvenOddGamePage() {
                           <td className="px-1.5 sm:px-3 py-1 sm:py-2">
                             {participant.status === "WINNER" ? (
                               <span className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                                {money(calculateWinnerFee(state.rooms, state.winnerSide || "EVEN", houseFeePercentage), "ETB")}
+                                {money(
+                                  calculateWinnerFee(
+                                    state?.rooms ?? [],
+                                    (state?.round?.winningSide ?? state?.latestResult?.winningSide ?? "EVEN") as Side,
+                                    houseFeePercentage
+                                  ),
+                                  "ETB"
+                                )}
                               </span>
                             ) : (
                               <span className="rounded px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold">
