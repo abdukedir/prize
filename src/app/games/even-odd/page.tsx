@@ -29,7 +29,6 @@ type Room = {
 type Round = { id: string; number: number; status: string; selectedNumber: number | null; winningSide: Side | null; publishedAt: string | null; publishedByName: string | null };
 type EvenOddState = { round: Round; latestResult: Round | null; rooms: Room[]; participants: Participant[] };
 
-const amountOptions = [500, 1000, 2000, 3000, 5000, 10000, 20000, 50000, 100000];
 const selectedParticipantStorageKey = "evenOddSelectedParticipantId";
 
 function formatK(value: number) {
@@ -42,6 +41,14 @@ function statusLabel(status: Participant["status"]) {
 
 function isRoomExpired(room: Room) {
   return new Date(room.expiresAt).getTime() <= Date.now();
+}
+
+function calculateWinnerFee(rooms: Room[], winnerSide: Side, houseFeePercentage: number) {
+  const completedRooms = rooms.filter(r => r.status === "COMPLETED" && r.winnerSide === winnerSide);
+  const losingSideTotal = completedRooms.reduce((sum, room) => {
+    return sum + (winnerSide === "EVEN" ? room.oddTotal : room.evenTotal);
+  }, 0);
+  return Math.floor(losingSideTotal * houseFeePercentage / 100);
 }
 
 export default function EvenOddGamePage() {
@@ -63,6 +70,7 @@ export default function EvenOddGamePage() {
   const [showExistingBetPrompt, setShowExistingBetPrompt] = useState(false);
   const [showZeroBalance, setShowZeroBalance] = useState<Participant | null>(null);
   const [pendingBet, setPendingBet] = useState<{ participant: Participant; amount: number; side: Side } | null>(null);
+  const [houseFeePercentage, setHouseFeePercentage] = useState(10);
 
   function selectParticipant(participantId: string) {
     selectedParticipantRef.current = selectedParticipantId === participantId ? "" : participantId;
@@ -87,7 +95,19 @@ export default function EvenOddGamePage() {
     selectedParticipantRef.current = savedParticipantId;
     if (savedParticipantId) setSelectedParticipantId(savedParticipantId);
     load(false, savedParticipantId);
+    loadSettings();
   }, []);
+
+  async function loadSettings() {
+    try {
+      const res = await api<{ settings: { evenOddHouseFeePercentage?: number } }>("/api/settings");
+      if (res.settings.evenOddHouseFeePercentage) {
+        setHouseFeePercentage(res.settings.evenOddHouseFeePercentage);
+      }
+    } catch {
+      // Use default 10%
+    }
+  }
 
   const participant = state?.participants.find((item) => item.id === selectedParticipantId);
   const playedEvenOddGames = state?.rooms.filter(r => r.status === "COMPLETED").length ?? 0;
@@ -321,31 +341,6 @@ export default function EvenOddGamePage() {
               ))}
             </div>
 
-            <div className="grid grid-cols-3 gap-1 sm:grid-cols-5">
-              {amountOptions.map((amount) => (
-                <button
-                  key={amount}
-                  className={`h-7 rounded text-[10px] font-bold transition ${selectedAmount === amount ? "bg-emerald-500 text-white" : "border border-zinc-200 bg-white hover:bg-emerald-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`}
-                  onClick={() => selectAmount(amount)}
-                >
-                  {formatK(amount)}
-                </button>
-              ))}
-            </div>
-
-            <label className="block text-[10px] font-semibold text-zinc-600 dark:text-zinc-300">
-              Custom Bet Amount
-              <input
-                className="mt-1 h-8 w-full text-xs"
-                type="number"
-                min="500"
-                max="100000"
-                step="500"
-                value={customAmount}
-                onChange={(event) => updateCustomAmount(event.target.value)}
-              />
-            </label>
-
             <button className="btn-primary h-8 w-full text-xs" disabled={busy} onClick={() => placeBet()}>
               <Plus size={14} />
               Place Bet
@@ -362,11 +357,23 @@ export default function EvenOddGamePage() {
                 </button>
               ))}
             </div>
-            <button className="h-8 w-full rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 btn-primary" disabled={busy || activeRooms.length === 0} onClick={finishGame}>
-              <Play size={14} />
-              {matchedRooms.length === 0 && activeRooms.length > 0
-                ? `Finish Game (${activeRooms.reduce((sum, r) => sum + r.remaining, 0)} remaining)`
-                : "Finish Matched Game"}
+
+            <label className="block text-[10px] font-semibold text-zinc-600 dark:text-zinc-300">
+              Bet Amount
+              <input
+                className="mt-1 h-8 w-full text-xs"
+                type="number"
+                min="500"
+                max="100000"
+                step="500"
+                value={customAmount}
+                onChange={(event) => updateCustomAmount(event.target.value)}
+              />
+            </label>
+
+            <button className="btn-primary h-8 w-full text-xs" disabled={busy} onClick={() => placeBet()}>
+              <Plus size={14} />
+              Place Bet
             </button>
           </div>
 
@@ -379,7 +386,7 @@ export default function EvenOddGamePage() {
                       <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Name</th>
                       <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Selected</th>
                       <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Balance</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Status</th>
+                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">House Fee</th>
                       <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[7px] sm:text-[9px] whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
@@ -401,9 +408,15 @@ export default function EvenOddGamePage() {
                           </td>
                           <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-[7px] sm:text-[9px] md:text-[10px]">{money(participant.balance)}</td>
                           <td className="px-1.5 sm:px-3 py-1 sm:py-2">
-                            <span className={`rounded px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold ${participant.status === "DISABLED" ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"}`}>
-                              {statusLabel(participant.status)}
-                            </span>
+                            {participant.status === "WINNER" ? (
+                              <span className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                {money(calculateWinnerFee(state.rooms, state.winnerSide || "EVEN", houseFeePercentage), "ETB")}
+                              </span>
+                            ) : (
+                              <span className="rounded px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold">
+                                -
+                              </span>
+                            )}
                           </td>
                           <td className="px-1.5 sm:px-3 py-1 sm:py-2">
                             <div className="flex flex-wrap gap-0.5 sm:gap-1">
