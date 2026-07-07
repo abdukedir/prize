@@ -26,11 +26,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (!participant) throw new Response("Participant not found", { status: 404 });
 
       const joinSide = oppositeSide(room.creatorSide);
+      const amount = new Prisma.Decimal(data.amount);
       const targetAmount = new Prisma.Decimal(room.targetAmount);
       const currentJoinTotal = room.bets
         .filter((bet) => bet.side === joinSide)
         .reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
-      const nextJoinTotal = currentJoinTotal.plus(data.amount);
+      const nextJoinTotal = currentJoinTotal.plus(amount);
 
       if (nextJoinTotal.gt(targetAmount)) throw new Response("Amount exceeds remaining room total", { status: 400 });
 
@@ -40,12 +41,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           roomId: room.id,
           participantId: data.participantId,
           side: joinSide,
-          amount: data.amount
+          amount: amount
         }
       });
       await tx.participant.update({
         where: { id: data.participantId },
-        data: { balance: { decrement: data.amount } }
+        data: { balance: { decrement: amount } }
       });
 
       if (nextJoinTotal.equals(targetAmount)) {
