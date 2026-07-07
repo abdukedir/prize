@@ -83,3 +83,7 @@ export const evenOddPublishResultSchema = z.object({
   selectedNumber: z.coerce.number().int().min(1).max(6)
 });
 
+export const evenOddFinishSchema = z.object({
+  winnerSide: z.enum(["EVEN", "ODD"])
+});
+

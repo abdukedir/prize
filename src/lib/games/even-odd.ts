@@ -1,6 +1,6 @@
 import { EvenOddSide, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { asNumber } from "@/lib/games/numbers";
+import { asNumber, getSettings } from "@/lib/games/numbers";
 
 export const EVEN_ODD_TIMEOUT_MINUTES = 10;
 
@@ -140,7 +140,12 @@ return prisma.$transaction(async (tx) => {
       where: { id: roundId, tenantId },
       include: {
         rooms: {
-          where: { status: { in: ["WAITING", "MATCHED"] } },
+          where: {
+            OR: [
+              { status: "MATCHED" },
+              { status: "WAITING", expiresAt: { gt: new Date() } }
+            ]
+          },
           include: { bets: true }
         }
       }
@@ -149,13 +154,16 @@ return prisma.$transaction(async (tx) => {
     if (!round) throw new Response("Round not found", { status: 404 });
     if (round.status === "PUBLISHED") throw new Response("Result already published", { status: 409 });
 
-for (const room of round.rooms) {
+const settings = await getSettings(tenantId);
+    const feePercentage = new Prisma.Decimal(settings.adminFeePercentage ?? 10);
+
+    for (const room of round.rooms) {
       const winningBets = room.bets.filter((bet) => bet.side === winningSide);
       const losingBets = room.bets.filter((bet) => bet.side !== winningSide);
       const winningTotal = winningBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
       const losingTotal = losingBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
       const totalPot = winningTotal.plus(losingTotal);
-      const platformFee = totalPot.mul(0.1);
+      const platformFee = losingTotal.mul(feePercentage.div(100));
       const prizePool = totalPot.minus(platformFee);
       let totalPayout = new Prisma.Decimal(0);
 

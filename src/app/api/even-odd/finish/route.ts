@@ -1,14 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureCsrf, handleError, ok } from "@/lib/api";
+import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
 import { processEvenOddRoundResult } from "@/lib/games/even-odd";
-import { sideForNumber } from "@/lib/games/even-odd";
+import { evenOddFinishSchema } from "@/lib/validators";
 
 export async function POST(req: NextRequest) {
   try {
     ensureCsrf(req);
     const user = await requireUser();
+    const data = await parseJson(req, evenOddFinishSchema);
     
     const round = await prisma.evenOddRound.findFirst({
       where: { tenantId: user.tenantId, status: "OPEN" },
@@ -25,7 +26,13 @@ export async function POST(req: NextRequest) {
     }
     
     const rooms = await prisma.evenOddRoom.findMany({
-      where: { roundId: round.id, status: { in: ["WAITING", "MATCHED"] }, expiresAt: { gt: new Date() } },
+      where: {
+        roundId: round.id,
+        OR: [
+          { status: "MATCHED" },
+          { status: "WAITING", expiresAt: { gt: new Date() } }
+        ]
+      },
       include: { bets: true }
     });
     
@@ -38,8 +45,8 @@ export async function POST(req: NextRequest) {
       throw new Response(`Cannot finish: EVEN (${evenTotal}) and ODD (${oddTotal}) are not equal. Remaining: ${Math.abs(evenTotal - oddTotal)}`, { status: 400 });
     }
     
-    const selectedNumber = evenTotal > 0 ? 2 : 1;
-    const winningSide = sideForNumber(selectedNumber);
+    const selectedNumber = data.winnerSide === "EVEN" ? 2 : 1;
+    const winningSide = data.winnerSide;
     
     await processEvenOddRoundResult(user.tenantId, round.id, selectedNumber, { id: user.id, name: user.name });
     

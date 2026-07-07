@@ -69,15 +69,15 @@ export function AppShell({ user, children }: { user: ApiUser; children: React.Re
             <p className="text-xs font-medium uppercase text-zinc-500">{t("employee")}</p>
             <p className="text-sm font-semibold">{user.name}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/games/numbers" className="mr-2 flex items-center gap-2 rounded-md px-2 py-1.5">
+          <div className="flex flex-wrap items-center gap-1">
+            <Link href="/games/numbers" className="mr-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs sm:text-sm">
 <div className="grid h-9 w-9 place-items-center rounded-md bg-emerald-500 text-white shadow-sm">
                 <Shield size={18} />
               </div>
             </Link>
             <div className="relative">
               <select
-                className="h-10 appearance-none pr-9"
+                className="h-9 appearance-none pr-8 text-xs sm:h-10 sm:text-sm"
                 value={language}
                 onChange={(event) => {
                   const nextLanguage = event.target.value as Language;
@@ -94,16 +94,16 @@ export function AppShell({ user, children }: { user: ApiUser; children: React.Re
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-3 text-zinc-400" size={15} />
             </div>
-            <button className="btn-secondary !h-10 !px-3" onClick={toggleTheme} title={t("toggleTheme")}>
+            <button className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" onClick={toggleTheme} title={t("toggleTheme") }>
               {dark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
-            <Link className="btn-secondary !h-10 !px-3" href="/settings" title={t("settings")}>
+            <Link className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" href="/settings" title={t("settings")}> 
               <Settings size={17} />
             </Link>
-            <Link className="btn-secondary !h-10 !px-3" href="/reports" title={t("reports")}>
+            <Link className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" href="/reports" title={t("reports")}> 
               <BarChart3 size={17} />
             </Link>
-            <button className="btn-secondary !h-10 !px-3" onClick={logout} title={t("logout")}>
+            <button className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" onClick={logout} title={t("logout")}> 
               <LogOut size={17} />
             </button>
           </div>
@@ -116,7 +116,7 @@ export function AppShell({ user, children }: { user: ApiUser; children: React.Re
               <Link
                 key={item.href}
                 href={item.href}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
+                className={`inline-flex items-center gap-2 rounded-md px-2 py-2 text-xs sm:px-3 sm:text-sm font-medium ${
                   active ? "bg-ink text-white dark:bg-emerald-400 dark:text-ink" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
                 }`}
               >
