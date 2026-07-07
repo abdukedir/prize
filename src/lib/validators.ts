@@ -66,7 +66,11 @@ export const roundSchema = z.object({
   status: z.enum(["OPEN", "CLOSED"]).optional()
 });
 
-const evenOddAmount = z.coerce.number().min(1).max(100000);
+const evenOddAmount = z.coerce
+  .number()
+  .min(500, "Amount must be at least 500")
+  .max(100000, "Amount cannot exceed 100000")
+  .refine((n) => n % 500 === 0, "Amount must be in increments of 500");
 
 export const evenOddCreateRoomSchema = z.object({
   participantId: z.string().min(1),
