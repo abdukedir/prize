@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
+import { ownerIdFromRequestUrl, resolveBoardOwner } from "@/lib/board-owner";
 import { getOpenEvenOddRound, serializeEvenOddRoom, serializeEvenOddRound, EVEN_ODD_TIMEOUT_MINUTES } from "@/lib/games/even-odd";
 import { evenOddCreateRoomSchema } from "@/lib/validators";
 
@@ -12,8 +13,8 @@ const roomInclude = {
   }
 };
 
-async function loadState(tenantId: string) {
-  const round = await getOpenEvenOddRound(tenantId);
+async function loadState(tenantId: string, ownerId: string) {
+  const round = await getOpenEvenOddRound(tenantId, ownerId);
   const [rooms, latestResult, participants] = await Promise.all([
     prisma.evenOddRoom.findMany({
       where: { tenantId, roundId: round.id },
@@ -21,11 +22,11 @@ async function loadState(tenantId: string) {
       include: roomInclude
     }),
     prisma.evenOddRound.findFirst({
-      where: { tenantId, status: "PUBLISHED" },
+      where: { tenantId, createdById: ownerId, status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" }
     }),
     prisma.participant.findMany({
-      where: { tenantId, status: { not: "DISABLED" } },
+      where: { tenantId, createdById: ownerId, status: { not: "DISABLED" } },
       orderBy: { fullName: "asc" },
       select: { id: true, fullName: true, balance: true, status: true }
     })
@@ -44,10 +45,11 @@ async function loadState(tenantId: string) {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    return ok(await loadState(user.tenantId));
+    const ownerId = await resolveBoardOwner(user, ownerIdFromRequestUrl(req.url));
+    return ok(await loadState(user.tenantId, ownerId));
   } catch (error) {
     return handleError(error);
   }
@@ -57,12 +59,13 @@ export async function POST(req: NextRequest) {
   try {
     ensureCsrf(req);
     const user = await requireUser();
+    const ownerId = await resolveBoardOwner(user, ownerIdFromRequestUrl(req.url));
     const data = await parseJson(req, evenOddCreateRoomSchema);
-    const round = await getOpenEvenOddRound(user.tenantId);
+    const round = await getOpenEvenOddRound(user.tenantId, ownerId);
 
     await prisma.$transaction(async (tx) => {
       const participant = await tx.participant.findFirst({
-        where: { id: data.participantId, tenantId: user.tenantId, status: { not: "DISABLED" } }
+        where: { id: data.participantId, tenantId: user.tenantId, createdById: ownerId, status: { not: "DISABLED" } }
       });
       if (!participant) throw new Response("Participant not found", { status: 404 });
 
@@ -94,7 +97,7 @@ export async function POST(req: NextRequest) {
     });
 
     await logActivity(user.id, user.tenantId, `Created Even/Odd room ${data.side} ${data.amount}`);
-    return ok(await loadState(user.tenantId), 201);
+    return ok(await loadState(user.tenantId, ownerId), 201);
   } catch (error) {
     return handleError(error);
   }

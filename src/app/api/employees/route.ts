@@ -6,7 +6,7 @@ import { employeeSchema } from "@/lib/validators";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireUser(["ADMIN"]);
+    const user = await requireUser(["ADMIN", "SUPERADMIN"]);
     const search = req.nextUrl.searchParams.get("search") ?? "";
     const employees = await prisma.user.findMany({
       where: {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     ensureCsrf(req);
-    const user = await requireUser(["ADMIN"]);
+    const user = await requireUser(["ADMIN", "SUPERADMIN"]);
     const data = await parseJson(req, employeeSchema.required({ password: true }));
     const employee = await prisma.user.create({
       data: {

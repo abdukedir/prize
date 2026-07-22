@@ -2,15 +2,17 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
+import { ownerIdFromRequestUrl, resolveBoardOwner } from "@/lib/board-owner";
 import { getOpenNumbersGame, getSettings, serializeEntry, serializeParticipant, serializeSettings } from "@/lib/games/numbers";
 import { bettingParticipantSchema } from "@/lib/validators";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
+    const ownerId = await resolveBoardOwner(user, ownerIdFromRequestUrl(req.url));
     const settings = await getSettings(user.tenantId);
-    const game = await getOpenNumbersGame(user.tenantId);
-    const participants = await prisma.participant.findMany({ where: { tenantId: user.tenantId }, orderBy: { createdAt: "desc" } });
+    const game = await getOpenNumbersGame(user.tenantId, ownerId);
+    const participants = await prisma.participant.findMany({ where: { tenantId: user.tenantId, createdById: ownerId }, orderBy: { createdAt: "desc" } });
     const entries = await prisma.entry.findMany({ where: { tenantId: user.tenantId, gameId: game.id }, orderBy: { selectedNumber: "asc" } });
 
     return ok({
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
   try {
     ensureCsrf(req);
     const user = await requireUser();
+    const ownerId = await resolveBoardOwner(user, ownerIdFromRequestUrl(req.url));
     const data = await parseJson(req, bettingParticipantSchema);
     const participant = await prisma.participant.create({
       data: {
@@ -37,7 +40,7 @@ export async function POST(req: NextRequest) {
         amountDeposited: data.amount,
         balance: data.amount,
         status: "ACTIVE",
-        createdById: user.id
+        createdById: ownerId
       }
     });
     await logActivity(user.id, user.tenantId, `Added participant ${participant.fullName}`);

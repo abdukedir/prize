@@ -15,7 +15,8 @@ export function serializeSettings(settings: Awaited<ReturnType<typeof getSetting
     currency: settings.currency,
     language: settings.language,
     theme: settings.theme,
-    adminFeePercentage: asNumber(settings.adminFeePercentage)
+    adminFeePercentage: asNumber(settings.adminFeePercentage),
+    houseFeeTiers: (settings.houseFeeTiers as Array<{ minAmount: number; feePercentage: number }> | null) ?? []
   };
 }
 
@@ -37,17 +38,18 @@ export async function getSettings(tenantId: string) {
   });
 }
 
-export async function getOpenNumbersGame(tenantId: string) {
+export async function getOpenNumbersGame(tenantId: string, createdById: string) {
   const open = await prisma.gameRound.findFirst({
-    where: { tenantId, gameType: "NUMBERS", status: "OPEN" },
+    where: { tenantId, createdById, gameType: "NUMBERS", status: "OPEN" },
     orderBy: { createdAt: "desc" }
   });
   if (open) return open;
 
-  const latest = await prisma.gameRound.findFirst({ where: { tenantId }, orderBy: { number: "desc" } });
+  const latest = await prisma.gameRound.findFirst({ where: { tenantId, createdById, gameType: "NUMBERS" }, orderBy: { number: "desc" } });
   return prisma.gameRound.create({
     data: {
       tenantId,
+      createdById,
       number: (latest?.number ?? 0) + 1,
       gameType: "NUMBERS"
     }

@@ -108,11 +108,11 @@ export async function getSystemStats() {
   };
 }
 
-export async function getOpenRound(tenantId: string) {
-  const latest = await prisma.gameRound.findFirst({ where: { tenantId }, orderBy: { number: "desc" } });
+export async function getOpenRound(tenantId: string, createdById: string) {
+  const latest = await prisma.gameRound.findFirst({ where: { tenantId, createdById, gameType: "NUMBERS" }, orderBy: { number: "desc" } });
   if (latest?.status === "OPEN") return latest;
   return prisma.gameRound.create({
-    data: { tenantId, number: (latest?.number ?? 0) + 1, status: "OPEN" }
+    data: { tenantId, createdById, number: (latest?.number ?? 0) + 1, status: "OPEN" }
   });
 }
 

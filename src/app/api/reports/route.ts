@@ -3,41 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { handleError, toCsv } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { asNumber, getSettings } from "@/lib/games/numbers";
+import { buildReportSummary } from "@/lib/report-summary";
 import { translateResult } from "@/lib/server-i18n";
 import { Language } from "@/lib/i18n";
 
 type MoneyFormatter = (value: number) => string;
 
-type ReportSummary = {
-  numbersGameCount: number;
-  numbersGameDeduction: number;
-  evenOddGameCount: number;
-  evenOddGameDeduction: number;
-};
 
-async function buildReportSummary(tenantId: string) {
-  const [settings, numbersGames, evenOddRounds] = await Promise.all([
-    getSettings(tenantId),
-    prisma.gameRound.findMany({
-      where: { tenantId, gameType: "NUMBERS", status: "CLOSED" }
-    }),
-    prisma.evenOddRound.findMany({
-      where: { tenantId, status: "PUBLISHED" },
-      include: { rooms: true }
-    })
-  ]);
-
-  const numbersGameCount = numbersGames.length;
-  const winnerRate = Number(settings.winnerRate);
-  const numbersGameDeduction = numbersGameCount * winnerRate;
-
-  const evenOddGameCount = evenOddRounds.length;
-  const evenOddGameDeduction = evenOddRounds.reduce((sum, round) => {
-    return sum + round.rooms.reduce((rSum, room) => rSum + Number(room.platformFee), 0);
-  }, 0);
-
-  return { numbersGameCount, numbersGameDeduction, evenOddGameCount, evenOddGameDeduction };
-}
 
 async function buildPlayerReports(tenantId: string, playerFilter = "", language: Language = "en") {
   const playerWhere = playerFilter

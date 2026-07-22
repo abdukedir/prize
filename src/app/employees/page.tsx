@@ -70,28 +70,28 @@ export default function EmployeesPage() {
             <label className="block text-sm font-medium">{t("name")}<input className="mt-2" {...form.register("name")} /></label>
             <label className="block text-sm font-medium">{t("email")}<input className="mt-2" type="email" {...form.register("email")} /></label>
             <label className="block text-sm font-medium">{t("password")}<input className="mt-2" type="password" placeholder={editing ? t("keepPassword") : ""} {...form.register("password")} /></label>
-            <button className="btn-primary w-full" disabled={form.formState.isSubmitting}><Plus size={17} />{t("saveEmployee")}</button>
+            <button className="btn-primary h-8 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm flex-1 sm:flex-initial" disabled={form.formState.isSubmitting}><Plus size={14} className="sm:size-4" /><span className="hidden sm:inline">{t("saveEmployee")}</span></button>
           </form>
         </section>
         <section className="panel overflow-hidden">
           <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
             <h2 className="font-semibold">{t("employees")}</h2>
           </div>
-          <table className="w-full text-sm">
-            <thead className="table-head"><tr><th className="px-4 py-3">{t("name")}</th><th className="px-4 py-3">{t("email")}</th><th className="px-4 py-3">{t("status")}</th><th className="px-4 py-3">{t("created")}</th><th className="px-4 py-3"></th></tr></thead>
-            <tbody>
-              {employees.map((employee) => (
-                <tr key={employee.id} className="border-t border-zinc-100 dark:border-zinc-800">
-                  <td className="px-4 py-3 font-medium">{employee.name}</td>
-                  <td className="px-4 py-3">{employee.email}</td>
-                  <td className="px-4 py-3">{employee.disabled ? t("disabled") : t("active")}</td>
-                  <td className="px-4 py-3 text-zinc-500">{formatDate(employee.createdAt)}</td>
+<table className="w-full text-[10px] sm:text-xs">
+             <thead className="table-head"><tr><th className="px-2 py-2 sm:px-4 sm:py-3">{t("name")}</th><th className="px-2 py-2 sm:px-4 sm:py-3">{t("email")}</th><th className="px-2 py-2 sm:px-4 sm:py-3">{t("status")}</th><th className="px-2 py-2 sm:px-4 sm:py-3">{t("created")}</th><th className="px-2 py-2 sm:px-4 sm:py-3"></th></tr></thead>
+             <tbody>
+               {employees.map((employee) => (
+                 <tr key={employee.id} className="border-t border-zinc-100 dark:border-zinc-800">
+                   <td className="px-2 py-2 font-medium sm:px-4 sm:py-3">{employee.name}</td>
+                   <td className="px-2 py-2 sm:px-4 sm:py-3">{employee.email}</td>
+                   <td className="px-2 py-2 sm:px-4 sm:py-3">{employee.disabled ? t("disabled") : t("active")}</td>
+                   <td className="px-2 py-2 text-zinc-500 sm:px-4 sm:py-3">{formatDate(employee.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button className="btn-secondary !px-3" title={t("edit")} onClick={() => { setEditing(employee); form.reset({ name: employee.name, email: employee.email, password: "" }); }}><Pencil size={16} /></button>
-                      <button className="btn-secondary !px-3" title={t("enableDisable")} onClick={() => toggle(employee)}><Power size={16} /></button>
-                      <button className="btn-danger !px-3" title={t("delete")} onClick={() => remove(employee)}><Trash2 size={16} /></button>
-                    </div>
+<div className="flex justify-end gap-1.5">
+                       <button className="btn-secondary !h-7 !px-2 text-xs sm:!h-8 sm:!px-2.5 sm:text-sm" title={t("edit")} onClick={() => { setEditing(employee); form.reset({ name: employee.name, email: employee.email, password: "" }); }}><Pencil size={14} className="sm:size-4" /></button>
+                       <button className="btn-secondary !h-7 !px-2 text-xs sm:!h-8 sm:!px-2.5 sm:text-sm" title={t("enableDisable")} onClick={() => toggle(employee)}><Power size={14} className="sm:size-4" /></button>
+                       <button className="btn-danger !h-7 !px-2 text-xs sm:!h-8 sm:!px-2.5 sm:text-sm" title={t("delete")} onClick={() => remove(employee)}><Trash2 size={14} className="sm:size-4" /></button>
+                     </div>
                   </td>
                 </tr>
               ))}

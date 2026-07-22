@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+import { ownerIdFromRequestUrl, resolveBoardOwner } from "@/lib/board-owner";
 import { getOpenNumbersGame, getSettings, serializeEntry } from "@/lib/games/numbers";
 import { numberAssignmentSchema } from "@/lib/validators";
 
@@ -10,30 +11,40 @@ export async function POST(req: NextRequest) {
   try {
     ensureCsrf(req);
     const user = await requireUser();
+    const ownerId = await resolveBoardOwner(user, ownerIdFromRequestUrl(req.url));
     const data = await parseJson(req, numberAssignmentSchema);
-    const game = await getOpenNumbersGame(user.tenantId);
+    const game = await getOpenNumbersGame(user.tenantId, ownerId);
     const settings = await getSettings(user.tenantId);
 
-    const participant = await prisma.participant.findFirst({ where: { id: data.participantId, tenantId: user.tenantId } });
+    const participant = await prisma.participant.findFirst({ where: { id: data.participantId, tenantId: user.tenantId, createdById: ownerId } });
     if (!participant) throw new Response("Participant not found", { status: 404 });
     if (participant.status === "DISABLED") throw new Response("Disabled participants cannot enter games", { status: 400 });
 
-    const existingNumber = await prisma.entry.findFirst({
-      where: { tenantId: user.tenantId, gameId: game.id, selectedNumber: data.selectedNumber }
+    const existingEntry = await prisma.entry.findFirst({
+      where: { tenantId: user.tenantId, gameId: game.id, participantId: data.participantId, selectedNumber: data.selectedNumber }
     });
 
-    if (existingNumber && existingNumber.participantId === data.participantId) {
+    if (existingEntry) {
       await prisma.$transaction([
-        prisma.entry.delete({ where: { id: existingNumber.id } }),
+        prisma.entry.delete({ where: { id: existingEntry.id } }),
         prisma.participant.update({
           where: { id: data.participantId },
-          data: { balance: { increment: existingNumber.ticketPrice } }
+          data: { balance: { increment: existingEntry.ticketPrice } }
         })
       ]);
       return ok({ entry: null });
     }
 
-    if (existingNumber) throw new Response("That number is already assigned in this game", { status: 409 });
+    const fullTicketPrice = new Prisma.Decimal(settings.ticketPrice);
+    const ticketPrice = data.ticketMode === "HALF" ? fullTicketPrice.div(2) : fullTicketPrice;
+    const numberEntries = await prisma.entry.findMany({
+      where: { tenantId: user.tenantId, gameId: game.id, selectedNumber: data.selectedNumber }
+    });
+    const assignedTotal = numberEntries.reduce((sum, entry) => sum.plus(entry.ticketPrice), new Prisma.Decimal(0));
+
+    if (assignedTotal.plus(ticketPrice).gt(fullTicketPrice)) {
+      throw new Response("That number already has a full ticket value assigned", { status: 409 });
+    }
 
     const entry = await prisma.$transaction(async (tx) => {
       const created = await tx.entry.create({
@@ -42,13 +53,13 @@ export async function POST(req: NextRequest) {
           gameId: game.id,
           participantId: data.participantId,
           selectedNumber: data.selectedNumber,
-          ticketPrice: settings.ticketPrice
+          ticketPrice
         }
       });
 
       await tx.participant.update({
         where: { id: data.participantId },
-        data: { balance: { decrement: settings.ticketPrice } }
+        data: { balance: { decrement: ticketPrice } }
       });
 
       return created;

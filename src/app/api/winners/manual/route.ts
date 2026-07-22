@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const user = await requireUser(["ADMIN"]);
     const data = await parseJson(req, manualWinnerSchema);
     const participant = await prisma.participant.findFirstOrThrow({ where: { id: data.participantId, tenantId: user.tenantId } });
-    const round = await getOpenRound(user.tenantId);
+    const round = await getOpenRound(user.tenantId, user.id);
     const winner = await prisma.winner.create({
       data: {
         tenantId: user.tenantId,
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       include: { participant: true, selectedBy: true }
     });
     await prisma.gameRound.update({ where: { id: round.id }, data: { status: "CLOSED", closedAt: new Date() } });
-    await prisma.gameRound.create({ data: { tenantId: user.tenantId, number: round.number + 1, status: "OPEN" } });
+    await prisma.gameRound.create({ data: { tenantId: user.tenantId, createdById: user.id, number: round.number + 1, status: "OPEN" } });
     await logActivity(user.id, user.tenantId, `Selected manual winner ${participant.fullName}`);
     return ok({ winner: { ...winner, prizeAmount: Number(winner.prizeAmount) } }, 201);
   } catch (error) {

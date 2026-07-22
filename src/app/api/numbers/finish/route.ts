@@ -3,8 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
+import { ownerIdFromRequestUrl, resolveBoardOwner } from "@/lib/board-owner";
 import { asNumber, getOpenNumbersGame, getSettings } from "@/lib/games/numbers";
-import { processEvenOddRoundResult } from "@/lib/games/even-odd";
+import { processEvenOddRoundResult, sideForNumber } from "@/lib/games/even-odd";
 import { finishNumbersGameSchema } from "@/lib/validators";
 
 export async function POST(req: NextRequest) {
@@ -12,9 +13,10 @@ export async function POST(req: NextRequest) {
     ensureCsrf(req);
 
     const user = await requireUser();
+    const ownerId = await resolveBoardOwner(user, ownerIdFromRequestUrl(req.url));
     const data = await parseJson(req, finishNumbersGameSchema);
     const settings = await getSettings(user.tenantId);
-    const game = await getOpenNumbersGame(user.tenantId);
+    const game = await getOpenNumbersGame(user.tenantId, ownerId);
 
     const result = await prisma.$transaction(async (tx) => {
       const entries = await tx.entry.findMany({
@@ -26,21 +28,53 @@ export async function POST(req: NextRequest) {
         throw new Response("Assign at least one number before finishing the game", { status: 400 });
       }
 
-      const firstEntry = entries.find((entry) => entry.selectedNumber === data.firstPrizeNumber);
-      const secondEntry = entries.find((entry) => entry.selectedNumber === data.secondPrizeNumber);
+      const firstEntries = entries.filter((entry) => entry.selectedNumber === data.firstPrizeNumber);
+      const secondEntries = entries.filter((entry) => entry.selectedNumber === data.secondPrizeNumber);
 
-      if (!firstEntry || !secondEntry) {
+      if (firstEntries.length === 0 || secondEntries.length === 0) {
         throw new Response("Both prize numbers must be assigned before finishing the game", { status: 400 });
       }
 
       const zero = new Prisma.Decimal(0);
       const ticketPrice = new Prisma.Decimal(settings.ticketPrice);
       const employeeRate = new Prisma.Decimal(settings.winnerRate);
-      const totalEntries = new Prisma.Decimal(entries.length);
 
-      const totalSales = totalEntries.mul(ticketPrice);
+      const totalSales = entries.reduce((sum, entry) => sum.plus(entry.ticketPrice), zero);
       const firstPrize = totalSales.minus(employeeRate).minus(ticketPrice);
       const secondPrize = ticketPrice;
+      const payoutByParticipant = new Map<string, Prisma.Decimal>();
+      const winnerParticipantIds = new Set<string>();
+      const winnerRows: {
+        tenantId: string;
+        participantId: string;
+        prizeAmount: Prisma.Decimal;
+        rateDeduction: Prisma.Decimal;
+        prizeRank: "FIRST" | "SECOND";
+        selectedById: string;
+        roundId: string;
+        roundNumber: number;
+      }[] = [];
+
+      function addPrize(entry: (typeof entries)[number], prizeAmount: Prisma.Decimal, prizeRank: "FIRST" | "SECOND", rateDeduction: Prisma.Decimal) {
+        const ratio = new Prisma.Decimal(entry.ticketPrice).div(ticketPrice);
+        const payout = prizeAmount.mul(ratio);
+        const nextPayout = (payoutByParticipant.get(entry.participantId) ?? zero).plus(payout);
+        payoutByParticipant.set(entry.participantId, nextPayout);
+        winnerParticipantIds.add(entry.participantId);
+        winnerRows.push({
+          tenantId: user.tenantId,
+          participantId: entry.participantId,
+          prizeAmount: payout,
+          rateDeduction: rateDeduction.mul(ratio),
+          prizeRank,
+          selectedById: user.id,
+          roundId: game.id,
+          roundNumber: game.number
+        });
+      }
+
+      for (const entry of firstEntries) addPrize(entry, firstPrize, "FIRST", employeeRate);
+      for (const entry of secondEntries) addPrize(entry, secondPrize, "SECOND", zero);
 
       const participantIds = new Set<string>();
 
@@ -49,53 +83,25 @@ export async function POST(req: NextRequest) {
       }
 
       for (const participantId of participantIds) {
-        const isFirstWinner = participantId === firstEntry.participantId;
-        const isSecondWinner = participantId === secondEntry.participantId;
-        let balanceIncrement = zero;
-
-        if (isFirstWinner) {
-          balanceIncrement = balanceIncrement.plus(firstPrize);
-        }
-
-        if (isSecondWinner) {
-          balanceIncrement = balanceIncrement.plus(secondPrize);
-        }
+        const balanceIncrement = payoutByParticipant.get(participantId) ?? zero;
+        const isWinner = winnerParticipantIds.has(participantId);
 
         await tx.participant.update({
           where: { id: participantId },
           data: {
             balance: { increment: balanceIncrement },
-            status: isFirstWinner || isSecondWinner ? "WINNER" : "LOST"
+            status: isWinner ? "WINNER" : "LOST"
           }
         });
       }
 
       await tx.winner.createMany({
-        data: [
-          {
-            tenantId: user.tenantId,
-            participantId: firstEntry.participantId,
-            prizeAmount: firstPrize,
-            rateDeduction: employeeRate,
-            prizeRank: "FIRST",
-            selectedById: user.id,
-            roundId: game.id,
-            roundNumber: game.number
-          },
-          {
-            tenantId: user.tenantId,
-            participantId: secondEntry.participantId,
-            prizeAmount: secondPrize,
-            rateDeduction: zero,
-            prizeRank: "SECOND",
-            selectedById: user.id,
-            roundId: game.id,
-            roundNumber: game.number
-          }
-        ]
+        data: winnerRows
       });
 
-      const totalPrizePaid = firstPrize.plus(secondPrize);
+      const firstPrizePaid = firstEntries.reduce((sum, entry) => sum.plus(firstPrize.mul(new Prisma.Decimal(entry.ticketPrice).div(ticketPrice))), zero);
+      const secondPrizePaid = secondEntries.reduce((sum, entry) => sum.plus(secondPrize.mul(new Prisma.Decimal(entry.ticketPrice).div(ticketPrice))), zero);
+      const totalPrizePaid = firstPrizePaid.plus(secondPrizePaid);
       const netIncome = totalSales.minus(totalPrizePaid);
       const report = await tx.report.create({
         data: {
@@ -106,8 +112,8 @@ export async function POST(req: NextRequest) {
           participantCount: participantIds.size,
           ticketPrice,
           totalSales,
-          firstPrizePaid: firstPrize,
-          secondPrizePaid: secondPrize,
+          firstPrizePaid,
+          secondPrizePaid,
           winnerRateDeduction: employeeRate,
           netIncome
         }
@@ -121,6 +127,7 @@ export async function POST(req: NextRequest) {
       await tx.gameRound.create({
         data: {
           tenantId: user.tenantId,
+          createdById: ownerId,
           number: game.number + 1,
           gameType: "NUMBERS"
         }
@@ -140,11 +147,12 @@ export async function POST(req: NextRequest) {
     });
 
     const evenOddRound = await prisma.evenOddRound.findFirst({
-      where: { tenantId: user.tenantId, status: "OPEN" }
+      where: { tenantId: user.tenantId, createdById: ownerId, status: "OPEN" }
     });
 
     if (evenOddRound) {
-      await processEvenOddRoundResult(user.tenantId, evenOddRound.id, result.winningNumber, { id: user.id, name: user.name });
+      const winningSide = sideForNumber(data.firstPrizeNumber);
+      await processEvenOddRoundResult(user.tenantId, evenOddRound.id, winningSide, { id: user.id, name: user.name });
     }
 
     await logActivity(user.id, user.tenantId, `Finished Numbers game ${game.number}`);

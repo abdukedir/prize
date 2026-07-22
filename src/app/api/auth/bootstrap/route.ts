@@ -18,8 +18,7 @@ export async function POST(req: NextRequest) {
       data: {
         name: data.tenantName,
         slug: slugify(data.tenantName) || "default",
-        settings: { create: { adminFeePercentage: 10 } },
-        rounds: { create: { number: 1, status: "OPEN" } }
+        settings: { create: { adminFeePercentage: 10 } }
       }
     });
     const user = await prisma.user.create({
@@ -31,6 +30,7 @@ export async function POST(req: NextRequest) {
         role: "ADMIN"
       }
     });
+    await prisma.gameRound.create({ data: { tenantId: tenant.id, createdById: user.id, number: 1, status: "OPEN" } });
     await prisma.activityLog.create({ data: { tenantId: tenant.id, userId: user.id, action: "Initialized tenant" } });
     const token = await signSession({ id: user.id, tenantId: tenant.id, name: user.name, email: user.email, role: user.role });
     const csrf = csrfToken();

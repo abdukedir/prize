@@ -1,0 +1,1 @@
+ALTER TABLE "Setting" ADD COLUMN IF NOT EXISTS "houseFeeTiers" JSONB;

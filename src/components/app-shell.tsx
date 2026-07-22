@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, ChevronDown, LogOut, Moon, Settings, Shield, Split, Sun } from "lucide-react";
+import { BarChart3, ChevronDown, LogOut, Moon, Settings, Shield, Split, Sun, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ApiUser, api } from "@/lib/client";
@@ -11,7 +11,8 @@ import { activeLanguages } from "@/lib/language-options";
 
 const nav = [
   { href: "/games/numbers", labelKey: "numbers", icon: Shield },
-  { href: "/games/even-odd", labelKey: "evenOdd", icon: Split }
+  { href: "/games/even-odd", labelKey: "evenOdd", icon: Split },
+  { href: "/reports", labelKey: "reports", icon: BarChart3 }
 ];
 
 export function AppShell({ user, children }: { user: ApiUser; children: React.ReactNode }) {
@@ -20,6 +21,16 @@ export function AppShell({ user, children }: { user: ApiUser; children: React.Re
   const [dark, setDark] = useState(false);
   const [language, setLanguage] = useState("en");
   const { t } = useI18n();
+  const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
+  const visibleNav = isAdmin
+    ? [
+        { href: "/games/numbers", labelKey: "numbers", icon: Shield },
+        { href: "/games/even-odd", labelKey: "evenOdd", icon: Split },
+        { href: "/approvals", label: "Approval", icon: BarChart3 },
+        { href: "/reports", label: "Reports", icon: BarChart3 },
+        { href: "/employees", labelKey: "employees", icon: Users }
+      ]
+    : nav;
 
   useEffect(() => {
     async function loadSettings() {
@@ -94,22 +105,24 @@ export function AppShell({ user, children }: { user: ApiUser; children: React.Re
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-3 text-zinc-400" size={15} />
             </div>
-            <button className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" onClick={toggleTheme} title={t("toggleTheme") }>
+            <button className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" onClick={toggleTheme} title={t("toggleTheme")}>
               {dark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
-            <Link className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" href="/settings" title={t("settings")}> 
-              <Settings size={17} />
-            </Link>
-            <Link className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" href="/reports" title={t("reports")}> 
+            {!isAdmin ? (
+              <Link className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" href="/settings" title={t("settings") }>
+                <Settings size={17} />
+              </Link>
+            ) : null}
+            <Link className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" href="/reports" title={t("reports") }>
               <BarChart3 size={17} />
             </Link>
-            <button className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" onClick={logout} title={t("logout")}> 
+            <button className="btn-secondary !h-9 !px-2 text-xs sm:!h-10 sm:!px-3" onClick={logout} title={t("logout") }>
               <LogOut size={17} />
             </button>
           </div>
         </div>
         <nav className="flex gap-2 overflow-x-auto px-4 pb-3 sm:px-6">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (
@@ -121,7 +134,7 @@ export function AppShell({ user, children }: { user: ApiUser; children: React.Re
                 }`}
               >
                 <Icon size={16} />
-                {t(item.labelKey)}
+                {"label" in item ? item.label : t(item.labelKey)}
               </Link>
             );
           })}

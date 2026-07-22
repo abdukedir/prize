@@ -8,37 +8,39 @@ datasource db {
 }
 
 model Tenant {
-  id            String         @id @default(cuid())
-  name          String
-  slug          String         @unique
-  createdAt     DateTime       @default(now())
-  activityLogs  ActivityLog[]
-  entries       Entry[]
-  evenOddBets   EvenOddBet[]
-  evenOddRooms  EvenOddRoom[]
-  evenOddRounds EvenOddRound[]
-  rounds        GameRound[]
-  participants  Participant[]
-  reports       Report[]
-  settings      Setting?
-  users         User[]
-  winners       Winner[]
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  activityLogs    ActivityLog[]
+  entries         Entry[]
+  evenOddBets     EvenOddBet[]
+  evenOddRooms    EvenOddRoom[]
+  evenOddRounds   EvenOddRound[]
+  rounds          GameRound[]
+  participants    Participant[]
+  reports         Report[]
+  reportApprovals ReportApproval[]
+  settings        Setting?
+  users           User[]
+  winners         Winner[]
 }
 
 model User {
-  id                     String         @id @default(cuid())
+  id                     String           @id @default(cuid())
   tenantId               String
   name                   String
-  email                  String         @unique
+  email                  String           @unique
   password               String
-  role                   Role           @default(EMPLOYEE)
-  disabled               Boolean        @default(false)
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @updatedAt
+  role                   Role             @default(EMPLOYEE)
+  disabled               Boolean          @default(false)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
   activityLogs           ActivityLog[]
-  publishedEvenOddRounds EvenOddRound[] @relation("EvenOddPublishedBy")
-  tenant                 Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  winners                Winner[]       @relation("SelectedBy")
+  publishedEvenOddRounds EvenOddRound[]   @relation("EvenOddPublishedBy")
+  reportApprovals        ReportApproval[]
+  tenant                 Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  winners                Winner[]         @relation("SelectedBy")
 
   @@index([tenantId, role])
 }
@@ -65,20 +67,22 @@ model Participant {
 }
 
 model GameRound {
-  id        String      @id @default(cuid())
-  tenantId  String
-  number    Int
-  status    RoundStatus @default(OPEN)
-  createdAt DateTime    @default(now())
-  closedAt  DateTime?
-  gameType  GameType    @default(NUMBERS)
-  entries   Entry[]
-  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  report    Report?
-  winners   Winner[]
+  id          String      @id @default(cuid())
+  tenantId    String
+  number      Int
+  status      RoundStatus @default(OPEN)
+  createdAt   DateTime    @default(now())
+  closedAt    DateTime?
+  gameType    GameType    @default(NUMBERS)
+  createdById String
+  entries     Entry[]
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  report      Report?
+  winners     Winner[]
 
-  @@unique([tenantId, number])
+  @@unique([tenantId, createdById, gameType, number])
   @@index([tenantId, gameType, status])
+  @@index([tenantId, createdById, gameType, status])
 }
 
 model Entry {
@@ -93,8 +97,9 @@ model Entry {
   participant    Participant @relation(fields: [participantId], references: [id])
   tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([gameId, selectedNumber])
+  @@unique([gameId, participantId, selectedNumber])
   @@index([tenantId, gameId])
+  @@index([gameId, selectedNumber])
 }
 
 model Winner {
@@ -113,24 +118,25 @@ model Winner {
   selectedBy    User        @relation("SelectedBy", fields: [selectedById], references: [id])
   tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([roundId, prizeRank])
+  @@index([roundId, prizeRank])
   @@index([tenantId, createdAt])
 }
 
 model Setting {
-  id                 String   @id @default(cuid())
-  tenantId           String   @unique
-  adminFeePercentage Decimal  @default(10) @db.Decimal(5, 2)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  currency           String   @default("ETB")
-  firstPrize         Decimal  @default(1000) @db.Decimal(12, 2)
-  language           String   @default("en")
-  secondPrize        Decimal  @default(200) @db.Decimal(12, 2)
-  theme              String   @default("light")
-  ticketPrice        Decimal  @default(200) @db.Decimal(12, 2)
-  winnerRate         Decimal  @default(0) @db.Decimal(12, 2)
-  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                        String   @id @default(cuid())
+  tenantId                  String   @unique
+  adminFeePercentage        Decimal  @default(10) @db.Decimal(5, 2)
+  houseFeeTiers            Json?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  currency                  String   @default("ETB")
+  firstPrize                Decimal  @default(1000) @db.Decimal(12, 2)
+  language                  String   @default("en")
+  secondPrize               Decimal  @default(200) @db.Decimal(12, 2)
+  theme                     String   @default("light")
+  ticketPrice               Decimal  @default(200) @db.Decimal(12, 2)
+  winnerRate                Decimal  @default(0) @db.Decimal(12, 2)
+  tenant                    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Report {
@@ -153,6 +159,30 @@ model Report {
   @@index([tenantId, createdAt])
 }
 
+model ReportApproval {
+  id                   String               @id @default(cuid())
+  tenantId             String
+  employeeId           String
+  employeeName         String
+  status               ReportApprovalStatus @default(PENDING)
+  message              String
+  numbersGameCount     Int                  @default(0)
+  numbersGameDeduction Decimal              @default(0) @db.Decimal(18, 2)
+  evenOddGameCount     Int                  @default(0)
+  evenOddGameDeduction Decimal              @default(0) @db.Decimal(18, 2)
+  totalProfit          Decimal              @default(0) @db.Decimal(18, 2)
+  reviewedById         String?
+  reviewedByName       String?
+  reviewedAt           DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  employee             User                 @relation(fields: [employeeId], references: [id])
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, employeeId])
+}
+
 model EvenOddRound {
   id              String             @id @default(cuid())
   tenantId        String
@@ -164,12 +194,14 @@ model EvenOddRound {
   publishedByName String?
   publishedAt     DateTime?
   createdAt       DateTime           @default(now())
+  createdById     String
   rooms           EvenOddRoom[]
   publishedBy     User?              @relation("EvenOddPublishedBy", fields: [publishedById], references: [id])
   tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, number])
+  @@unique([tenantId, createdById, number])
   @@index([tenantId, status])
+  @@index([tenantId, createdById, status])
 }
 
 model EvenOddRoom {
@@ -269,4 +301,10 @@ enum EvenOddRoomStatus {
 enum EvenOddRoundStatus {
   OPEN
   PUBLISHED
+}
+
+enum ReportApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

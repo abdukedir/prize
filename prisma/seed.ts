@@ -10,8 +10,7 @@ async function main() {
     update: {},
     create: {
       name: "Demo Prize House",
-      slug: "demo-prize-house",
-      rounds: { create: { number: 1, status: "OPEN" } }
+      slug: "demo-prize-house"
     }
   });
 
@@ -32,7 +31,7 @@ async function main() {
     }
   });
 
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: "admin@demo.com" },
     update: {},
     create: { tenantId: tenant.id, name: "Demo Admin", email: "admin@demo.com", password, role: "ADMIN" }
@@ -44,11 +43,17 @@ async function main() {
     create: { tenantId: tenant.id, name: "Demo Employee", email: "employee@demo.com", password, role: "EMPLOYEE" }
   });
 
+  await prisma.gameRound.upsert({
+    where: { tenantId_createdById_gameType_number: { tenantId: tenant.id, createdById: admin.id, gameType: "NUMBERS", number: 1 } },
+    update: {},
+    create: { tenantId: tenant.id, createdById: admin.id, number: 1, status: "OPEN" }
+  });
+
   await prisma.participant.createMany({
     data: [
-      { tenantId: tenant.id, fullName: "Maya Johnson", phoneNumber: "+1 202 555 0144", amountDeposited: 1200, balance: 1200 },
-      { tenantId: tenant.id, fullName: "Omar Ruiz", phoneNumber: "+1 202 555 0178", amountDeposited: 900, balance: 900 },
-      { tenantId: tenant.id, fullName: "Ari Chen", phoneNumber: "+1 202 555 0163", amountDeposited: 1500, balance: 1500 }
+      { tenantId: tenant.id, createdById: admin.id, fullName: "Maya Johnson", phoneNumber: "+1 202 555 0144", amountDeposited: 1200, balance: 1200 },
+      { tenantId: tenant.id, createdById: admin.id, fullName: "Omar Ruiz", phoneNumber: "+1 202 555 0178", amountDeposited: 900, balance: 900 },
+      { tenantId: tenant.id, createdById: admin.id, fullName: "Ari Chen", phoneNumber: "+1 202 555 0163", amountDeposited: 1500, balance: 1500 }
     ],
     skipDuplicates: true
   });

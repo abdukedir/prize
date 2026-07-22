@@ -2,15 +2,17 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
+import { ownerIdFromRequestUrl, resolveBoardOwner } from "@/lib/board-owner";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     ensureCsrf(req);
     const user = await requireUser();
+    const ownerId = await resolveBoardOwner(user, ownerIdFromRequestUrl(req.url));
 
     await prisma.$transaction(async (tx) => {
       const room = await tx.evenOddRoom.findFirst({
-        where: { id: params.id, tenantId: user.tenantId, status: "WAITING" },
+        where: { id: params.id, tenantId: user.tenantId, status: "WAITING", round: { createdById: ownerId } },
         include: { bets: true }
       });
       if (!room) throw new Response("Room not available", { status: 404 });

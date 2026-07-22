@@ -12,6 +12,10 @@ export async function middleware(req: NextRequest) {
 
   const user = await verifySessionToken(req.cookies.get("gpm_session")?.value);
   if (!user) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const login = new URL("/login", req.url);
     login.searchParams.set("next", pathname);
     return NextResponse.redirect(login);

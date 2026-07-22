@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock, Mail } from "lucide-react";
@@ -14,15 +15,19 @@ type FormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const params = useSearchParams();
+  const [nextPath, setNextPath] = useState("/games/numbers");
   const { t } = useI18n();
   const form = useForm<FormData>({ resolver: zodResolver(loginSchema), defaultValues: { email: "", password: "" } });
+
+  useEffect(() => {
+    setNextPath(new URLSearchParams(window.location.search).get("next") || "/games/numbers");
+  }, []);
 
   async function onSubmit(values: FormData) {
     try {
       await api("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
       toast.success(t("welcomeBack"));
-      router.replace(params.get("next") || "/games/numbers");
+      router.replace(nextPath);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("loginFailed"));
     }

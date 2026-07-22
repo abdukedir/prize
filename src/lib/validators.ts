@@ -36,7 +36,8 @@ export const participantStatusSchema = z.object({
 
 export const numberAssignmentSchema = z.object({
   participantId: z.string().min(1),
-  selectedNumber: z.coerce.number().int().min(1)
+  selectedNumber: z.coerce.number().int().min(1),
+  ticketMode: z.enum(["FULL", "HALF"]).optional().default("FULL")
 });
 
 export const finishNumbersGameSchema = z.object({
@@ -55,7 +56,8 @@ export const settingsSchema = z.object({
   currency: z.string().min(3).max(3).default("ETB"),
   language: z.enum(["en", "am", "om"]).default("en"),
   theme: z.enum(["light", "dark"]).default("light"),
-  adminFeePercentage: z.coerce.number().min(0).max(100).optional().default(10)
+  adminFeePercentage: z.coerce.number().min(0).max(100).optional().default(10),
+  houseFeeTiers: z.array(z.object({ minAmount: z.coerce.number().min(1), feePercentage: z.coerce.number().min(0).max(100) })).optional().default([])
 });
 
 export const manualWinnerSchema = z.object({

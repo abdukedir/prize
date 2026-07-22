@@ -1,6 +1,6 @@
 import { EvenOddSide, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { asNumber, getSettings } from "@/lib/games/numbers";
+import { asNumber } from "@/lib/games/numbers";
 
 export const EVEN_ODD_TIMEOUT_MINUTES = 10;
 
@@ -87,17 +87,18 @@ export function serializeEvenOddRoom(room: {
   };
 }
 
-export async function getOpenEvenOddRound(tenantId: string) {
+export async function getOpenEvenOddRound(tenantId: string, createdById: string) {
   const open = await prisma.evenOddRound.findFirst({
-    where: { tenantId, status: "OPEN" },
+    where: { tenantId, createdById, status: "OPEN" },
     orderBy: { number: "desc" }
   });
   if (open) return open;
 
-  const latest = await prisma.evenOddRound.findFirst({ where: { tenantId }, orderBy: { number: "desc" } });
+  const latest = await prisma.evenOddRound.findFirst({ where: { tenantId, createdById }, orderBy: { number: "desc" } });
   return prisma.evenOddRound.create({
     data: {
       tenantId,
+      createdById,
       number: (latest?.number ?? 1057) + 1
     }
   });
@@ -132,106 +133,98 @@ export async function refundExpiredEvenOddRooms(tenantId: string) {
   });
 }
 
-export async function processEvenOddRoundResult(tenantId: string, roundId: string, selectedNumber: number, employee: { id: string; name: string }) {
-  const winningSide = sideForNumber(selectedNumber);
-
-return prisma.$transaction(async (tx) => {
-    const round = await tx.evenOddRound.findFirst({
-      where: { id: roundId, tenantId },
-      include: {
-        rooms: {
-          where: {
-            OR: [
-              { status: "MATCHED" },
-              { status: "WAITING", expiresAt: { gt: new Date() } }
-            ]
-          },
-          include: { bets: true }
-        }
-      }
-    });
-
-    if (!round) throw new Response("Round not found", { status: 404 });
-    if (round.status === "PUBLISHED") throw new Response("Result already published", { status: 409 });
-
-const settings = await getSettings(tenantId);
-    const feePercentage = new Prisma.Decimal(settings.adminFeePercentage ?? 10);
-
-    for (const room of round.rooms) {
-      const winningBets = room.bets.filter((bet) => bet.side === winningSide);
-      const losingBets = room.bets.filter((bet) => bet.side !== winningSide);
-      const winningTotal = winningBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
-      const losingTotal = losingBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
-      const totalPot = winningTotal.plus(losingTotal);
-      const platformFee = losingTotal.mul(feePercentage.div(100));
-      const prizePool = totalPot.minus(platformFee);
-      let totalPayout = new Prisma.Decimal(0);
-
-      if (winningBets.length > 0) {
-        const winner = winningBets[0];
-        const payout = prizePool;
-        totalPayout = payout;
-
-        await tx.evenOddBet.update({
-          where: { id: winner.id },
-          data: { payout: payout }
-        });
-        await tx.participant.update({
-          where: { id: winner.participantId },
-          data: { balance: { increment: payout }, status: "WINNER" }
-        });
-      }
-
-      for (const bet of winningBets.slice(1)) {
-        await tx.evenOddBet.update({
-          where: { id: bet.id },
-          data: { payout: new Prisma.Decimal(0) }
-        });
-        await tx.participant.update({
-          where: { id: bet.participantId },
-          data: { status: "LOST" }
-        });
-      }
-
-      for (const bet of losingBets) {
-        await tx.participant.update({
-          where: { id: bet.participantId },
-          data: { status: "LOST" }
-        });
-      }
-
-      await tx.evenOddRoom.update({
-        where: { id: room.id },
-        data: {
-          status: "COMPLETED",
-          winnerSide: winningSide,
-          platformFee,
-          totalPayout,
-          completedAt: new Date()
-        }
-      });
-    }
-
-    const published = await tx.evenOddRound.update({
-      where: { id: round.id },
-      data: {
-        status: "PUBLISHED",
-        selectedNumber,
-        winningSide,
-        publishedById: employee.id,
-        publishedByName: employee.name,
-        publishedAt: new Date()
-      }
-    });
-
-    await tx.evenOddRound.create({
-      data: {
-        tenantId,
-        number: round.number + 1
-      }
-    });
-
-    return published;
-  });
+export function getFeeForAmount(amount: number, tiers: Array<{ minAmount: number; feePercentage: number }> = [], defaultFee = 10): number {
+  if (!tiers.length) return defaultFee;
+  const sorted = [...tiers].sort((a, b) => a.minAmount - b.minAmount);
+  let fee = defaultFee;
+  for (const tier of sorted) {
+    if (amount >= tier.minAmount) fee = tier.feePercentage;
+  }
+  return fee;
 }
 
+export async function processEvenOddRoundResult(tenantId: string, roundId: string, winningSide: EvenOddSide, employee: { id: string; name: string }, houseFeeTiers: Array<{ minAmount: number; feePercentage: number }> = [], defaultFee = 10) {
+   return prisma.$transaction(async (tx) => {
+     const round = await tx.evenOddRound.findFirst({
+       where: { id: roundId, tenantId },
+       include: {
+         rooms: {
+           where: { status: { in: ["WAITING", "MATCHED"] } },
+           include: { bets: true }
+         }
+       }
+     });
+
+     if (!round) throw new Response("Round not found", { status: 404 });
+     if (round.status === "PUBLISHED") throw new Response("Result already published", { status: 409 });
+
+      for (const room of round.rooms) {
+        const winningBets = room.bets.filter((bet) => bet.side === winningSide);
+        const losingBets = room.bets.filter((bet) => bet.side !== winningSide);
+        const winningTotal = winningBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
+        const losingTotal = losingBets.reduce((sum, bet) => sum.plus(bet.amount), new Prisma.Decimal(0));
+        const totalPot = winningTotal.plus(losingTotal);
+
+        let platformFee = new Prisma.Decimal(0);
+        for (const bet of losingBets) {
+          const feePercentage = getFeeForAmount(Number(bet.amount), houseFeeTiers);
+          platformFee = platformFee.plus(new Prisma.Decimal(bet.amount).mul(feePercentage).div(100));
+        }
+        const totalPayout = winningTotal.plus(losingTotal).minus(platformFee);
+
+        if (winningBets.length > 0) {
+          for (const bet of winningBets) {
+            const shareOfLosingSide = losingTotal.div(winningBets.length);
+            const payout = bet.amount.plus(shareOfLosingSide.minus(platformFee.div(winningBets.length)));
+            await tx.evenOddBet.update({
+              where: { id: bet.id },
+              data: { payout: payout }
+            });
+            await tx.participant.update({
+              where: { id: bet.participantId },
+              data: { balance: { increment: payout }, status: "WINNER" }
+            });
+          }
+        }
+
+       for (const bet of losingBets) {
+         await tx.participant.update({
+           where: { id: bet.participantId },
+           data: { status: "LOST" }
+         });
+       }
+
+       await tx.evenOddRoom.update({
+         where: { id: room.id },
+         data: {
+           status: "COMPLETED",
+           winnerSide: winningSide,
+           platformFee,
+           totalPayout,
+           completedAt: new Date()
+         }
+       });
+     }
+
+     const published = await tx.evenOddRound.update({
+        where: { id: round.id },
+        data: {
+          status: "PUBLISHED",
+          winningSide,
+          publishedById: employee.id,
+          publishedByName: employee.name,
+          publishedAt: new Date()
+        }
+      });
+
+     await tx.evenOddRound.create({
+       data: {
+         tenantId,
+         createdById: round.createdById,
+         number: round.number + 1
+       }
+     });
+
+     return published;
+   });
+ }

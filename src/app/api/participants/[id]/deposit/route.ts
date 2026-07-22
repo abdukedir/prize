@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
-import { logActivity, requireUser } from "@/lib/auth";
+import { adminRoles, logActivity, requireUser } from "@/lib/auth";
 import { z } from "zod";
 
 const depositSchema = z.object({
@@ -16,8 +16,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const data = await parseJson(req, depositSchema);
 
     // Get current participant
-    const participant = await prisma.participant.findUnique({
-      where: { id, tenantId: user.tenantId }
+    const participant = await prisma.participant.findFirst({
+      where: { id, tenantId: user.tenantId, ...(adminRoles.includes(user.role) ? {} : { createdById: user.id }) }
     });
 
     if (!participant) {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // Update balance (add deposit amount)
     const updated = await prisma.participant.update({
-      where: { id, tenantId: user.tenantId },
+      where: { id },
       data: {
         balance: { increment: data.amount }
       }

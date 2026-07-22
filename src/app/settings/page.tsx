@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Save } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Save } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
@@ -13,6 +13,7 @@ import { useI18n } from "@/lib/i18n";
 import { activeLanguages } from "@/lib/language-options";
 import { settingsSchema } from "@/lib/validators";
 
+type Tier = { minAmount: number; feePercentage: number };
 type FormData = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
@@ -20,6 +21,8 @@ export default function SettingsPage() {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [showHouseFeeModal, setShowHouseFeeModal] = useState(false);
+  const [defaultFeePercentage, setDefaultFeePercentage] = useState(10);
+  const [tiers, setTiers] = useState<Tier[]>([{ minAmount: 500, feePercentage: 10 }]);
   const form = useForm<FormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: { ticketPrice: 200, firstPrize: 1000, secondPrize: 200, winnerRate: 200, currency: "ETB", language: "en", theme: "light", adminFeePercentage: 10 }
@@ -27,23 +30,18 @@ export default function SettingsPage() {
   const ticketPrice = form.watch("ticketPrice");
   const winnerRate = form.watch("winnerRate");
   const currency = form.watch("currency");
-  const adminFeePercentage = form.watch("adminFeePercentage");
-  const [houseFee, setHouseFee] = useState(adminFeePercentage);
-  const [sampleRows, setSampleRows] = useState([
-    { amount: 500, feePercentage: adminFeePercentage },
-    { amount: 1000, feePercentage: adminFeePercentage }
-  ]);
 
   useEffect(() => {
-    api<{ settings: FormData }>("/api/settings")
-      .then((data) => form.reset(data.settings))
+    api<{ settings: FormData & { houseFeeTiers?: Tier[]; adminFeePercentage?: number } }>("/api/settings")
+      .then((data) => {
+        form.reset(data.settings);
+        setDefaultFeePercentage(data.settings.adminFeePercentage ?? 10);
+        if (data.settings.houseFeeTiers && data.settings.houseFeeTiers.length > 0) {
+          setTiers(data.settings.houseFeeTiers);
+        }
+      })
       .catch(() => toast.error(t("couldNotLoadSettings")));
   }, [form, t]);
-
-  useEffect(() => {
-    setHouseFee(adminFeePercentage);
-    setSampleRows((rows) => rows.map((row) => ({ ...row, feePercentage: adminFeePercentage })));
-  }, [adminFeePercentage]);
 
   async function onSubmit(values: FormData) {
     try {
@@ -57,18 +55,22 @@ export default function SettingsPage() {
   }
 
   async function applyHouseFee() {
-    if (houseFee === null || houseFee === undefined || Number.isNaN(houseFee) || houseFee < 0 || houseFee > 100) {
-      return toast.error("Enter a valid house fee between 0 and 100");
+    const invalid = tiers.find((tier) => tier.minAmount < 1 || tier.feePercentage < 0 || tier.feePercentage > 100);
+    if (invalid) {
+      return toast.error("Enter valid tiers: min amount >= 1, fee between 0 and 100");
+    }
+    if (defaultFeePercentage < 0 || defaultFeePercentage > 100) {
+      return toast.error("Enter a valid default fee between 0 and 100");
     }
 
     try {
       setBusy(true);
       const currentValues = form.getValues();
-      const updatedValues = { ...currentValues, adminFeePercentage: houseFee };
+      const updatedValues = { ...currentValues, adminFeePercentage: defaultFeePercentage, houseFeeTiers: tiers };
       await api("/api/settings", { method: "PUT", body: JSON.stringify(updatedValues) });
       form.reset(updatedValues);
       setShowHouseFeeModal(false);
-      toast.success("House fee updated");
+      toast.success("House fee tiers updated");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("couldNotSaveSettings"));
     } finally {
@@ -89,7 +91,6 @@ export default function SettingsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <input type="hidden" {...form.register("firstPrize")} />
             <input type="hidden" {...form.register("secondPrize")} />
-            <input type="hidden" {...form.register("adminFeePercentage")} />
             <label className="block text-sm font-medium">{t("ticketPrice")}
               <input className="mt-2" type="number" step="1" {...form.register("ticketPrice")} />
             </label>
@@ -124,8 +125,9 @@ export default function SettingsPage() {
               </select>
             </label>
           </div>
+
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-zinc-600 dark:text-zinc-300">Current house fee: {adminFeePercentage}%</div>
+            <div className="text-sm text-zinc-600 dark:text-zinc-300">{tiers.length} fee tier{tiers.length === 1 ? "" : "s"} configured</div>
             <div className="flex flex-wrap gap-2">
               <button type="button" className="btn-secondary" onClick={() => setShowHouseFeeModal(true)}>Set House Fee</button>
               <button className="btn-primary" disabled={form.formState.isSubmitting}><Save size={16} />{t("saveSettings")}</button>
@@ -134,76 +136,81 @@ export default function SettingsPage() {
         </form>
         {showHouseFeeModal && (
           <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-            <div className="panel w-full max-w-md p-4">
+            <div className="panel w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 shadow-xl">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-bold">Set House Fee</h2>
+                <h2 className="text-lg font-bold">Set House Fee Tiers</h2>
                 <button type="button" className="btn-secondary !h-9 !px-2" onClick={() => setShowHouseFeeModal(false)} disabled={busy}>Cancel</button>
               </div>
-              <div className="mt-4 grid gap-4">
-                <div>
-                  <label className="block text-sm font-medium">House fee percentage</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={houseFee}
-                    onChange={(event) => setHouseFee(Number(event.target.value))}
-                    className="mt-2 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-                  />
-                </div>
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="grid items-center gap-2 text-zinc-700 dark:text-zinc-300 sm:grid-cols-[1fr_120px_120px_40px]">
-                    <div className="font-semibold">Bet amount</div>
-                    <div className="font-semibold">Fee %</div>
-                    <div className="font-semibold">Fee amount</div>
-                    <div />
-                  </div>
-                  {sampleRows.map((row, index) => {
-                    const feeAmount = (row.amount * (row.feePercentage ?? 0)) / 100;
-                    return (
-                      <div key={index} className="mt-3 grid items-center gap-2 sm:grid-cols-[1fr_120px_120px_40px]">
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={row.amount}
-                          onChange={(event) => setSampleRows((rows) => rows.map((item, idx) => idx === index ? { ...item, amount: Number(event.target.value) } : item))}
-                          className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                          value={row.feePercentage}
-                          onChange={(event) => setSampleRows((rows) => rows.map((item, idx) => idx === index ? { ...item, feePercentage: Number(event.target.value) } : item))}
-                          className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-                        />
-                        <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">{money(feeAmount, currency)}</div>
-                        <button
-                          type="button"
-                          className="text-zinc-500 hover:text-red-600"
-                          onClick={() => setSampleRows((rows) => rows.filter((_, idx) => idx !== index))}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    className="mt-3 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
-                    onClick={() => setSampleRows((rows) => [...rows, { amount: 500, feePercentage: houseFee }])}
-                  >
-                    Add sample row
-                  </button>
-                </div>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Fee is selected by the highest minAmount that is less than or equal to the bet amount. If no tier matches, the default fee is used.</p>
+              <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <label className="block text-sm font-medium">Default house fee (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={defaultFeePercentage}
+                  onChange={(event) => setDefaultFeePercentage(Number(event.target.value))}
+                  className="mt-2 h-8 w-32 rounded-md border border-zinc-200 px-2 text-xs dark:border-zinc-800 dark:bg-zinc-900"
+                />
+                <p className="mt-1 text-xs text-zinc-500">Applied when no tier minAmount is less than or equal to the bet amount.</p>
               </div>
-              <div className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">Example: ETB 500 = house fee ETB 100</div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 dark:border-zinc-800">
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-500">Min Bet Amount</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-500">Fee %</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-500">Example Fee</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-500">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {tiers.map((tier, index) => {
+                      const exampleFee = (5000 * tier.feePercentage) / 100;
+                      return (
+                        <tr key={index}>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={1}
+                              step={500}
+                              value={tier.minAmount}
+                              onChange={(event) => setTiers((rows) => rows.map((item, idx) => idx === index ? { ...item, minAmount: Number(event.target.value) } : item))}
+                              className="h-8 w-32 rounded-md border border-zinc-200 px-2 text-xs dark:border-zinc-800 dark:bg-zinc-900"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.1}
+                              value={tier.feePercentage}
+                              onChange={(event) => setTiers((rows) => rows.map((item, idx) => idx === index ? { ...item, feePercentage: Number(event.target.value) } : item))}
+                              className="h-8 w-24 rounded-md border border-zinc-200 px-2 text-xs dark:border-zinc-800 dark:bg-zinc-900"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300">ETB {exampleFee.toLocaleString()} on 5K</td>
+                          <td className="px-3 py-2 text-right">
+                            <button type="button" className="text-xs text-red-600 hover:text-red-800" onClick={() => setTiers((rows) => rows.filter((_, idx) => idx !== index))}>Remove</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                type="button"
+                className="mt-3 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                onClick={() => setTiers((rows) => [...rows, { minAmount: 500, feePercentage: 10 }])}
+              >
+                Add tier
+              </button>
               <div className="mt-6 flex gap-2">
                 <button type="button" className="btn-secondary flex-1" onClick={() => setShowHouseFeeModal(false)} disabled={busy}>Cancel</button>
-                <button type="button" className="btn-primary flex-1" onClick={applyHouseFee} disabled={busy}>Apply Fee</button>
+                <button type="button" className="btn-primary flex-1" onClick={applyHouseFee} disabled={busy}>Apply Tiers</button>
               </div>
             </div>
           </div>

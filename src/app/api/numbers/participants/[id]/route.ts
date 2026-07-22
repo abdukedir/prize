@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, noContent, ok, parseJson } from "@/lib/api";
-import { logActivity, requireUser } from "@/lib/auth";
+import { adminRoles, logActivity, requireUser } from "@/lib/auth";
 import { serializeParticipant } from "@/lib/games/numbers";
 import { participantStatusSchema } from "@/lib/validators";
 
@@ -10,7 +10,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     ensureCsrf(req);
     const user = await requireUser();
-    const existing = await prisma.participant.findFirst({ where: { id: params.id, tenantId: user.tenantId } });
+    const existing = await prisma.participant.findFirst({
+      where: { id: params.id, tenantId: user.tenantId, ...(adminRoles.includes(user.role) ? {} : { createdById: user.id }) }
+    });
     if (!existing) throw new Response("Participant not found", { status: 404 });
     const data = await parseJson(req, participantStatusSchema);
     const participant = await prisma.$transaction(async (tx) => {
@@ -53,7 +55,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   try {
     ensureCsrf(req);
     const user = await requireUser();
-    const existing = await prisma.participant.findFirst({ where: { id: params.id, tenantId: user.tenantId } });
+    const existing = await prisma.participant.findFirst({
+      where: { id: params.id, tenantId: user.tenantId, ...(adminRoles.includes(user.role) ? {} : { createdById: user.id }) }
+    });
     if (!existing) throw new Response("Participant not found", { status: 404 });
 
     await prisma.$transaction([

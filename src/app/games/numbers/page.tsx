@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Medal, Play, Plus, RefreshCw, Trash2, Trophy, UserCheck, UserX, X } from "lucide-react";
@@ -13,6 +14,7 @@ import { statusKey, useI18n } from "@/lib/i18n";
 import { bettingParticipantSchema } from "@/lib/validators";
 
 type Side = "EVEN" | "ODD";
+type TicketMode = "FULL" | "HALF";
 
 type Settings = {
   ticketPrice: number;
@@ -36,6 +38,7 @@ type Entry = {
   selectedNumber: number;
   ticketPrice: number;
 };
+type Employee = { id: string; name: string; email: string; disabled: boolean };
 
 type NumbersState = {
   settings: Settings;
@@ -52,8 +55,14 @@ type PendingAction =
 
 export default function NumbersGamePage() {
   const { user, loading } = useMe();
+  const router = useRouter();
   const { t } = useI18n();
   const [state, setState] = useState<NumbersState | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedOwnerId, setSelectedOwnerId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("employeeId") ?? "";
+  });
   const [busy, setBusy] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [showWinnerSelection, setShowWinnerSelection] = useState(false);
@@ -65,6 +74,7 @@ export default function NumbersGamePage() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [firstPrizeNumber, setFirstPrizeNumber] = useState<number | null>(null);
   const [secondPrizeNumber, setSecondPrizeNumber] = useState<number | null>(null);
+  const [ticketMode, setTicketMode] = useState<TicketMode>("FULL");
 const [bothGameMode, setBothGameMode] = useState(false);
 
   const [bothGameAmount, setBothGameAmount] = useState(500);
@@ -77,9 +87,10 @@ const [bothGameMode, setBothGameMode] = useState(false);
 
   const [pendingBet, setPendingBet] = useState<{ participant: Participant; amount: number; side: Side } | null>(null);
   const form = useForm<FormData>({ resolver: zodResolver(bettingParticipantSchema), defaultValues: { name: "", amount: 200 } });
+  const ownerQuery = selectedOwnerId ? `?employeeId=${encodeURIComponent(selectedOwnerId)}` : "";
 
   async function load() {
-    const data = await api<NumbersState>("/api/numbers/participants");
+    const data = await api<NumbersState>(`/api/numbers/participants${ownerQuery}`);
     setState(data);
     form.setValue("amount", data.settings.ticketPrice);
     setBothGameMode(false);
@@ -90,7 +101,21 @@ const [bothGameMode, setBothGameMode] = useState(false);
 
   useEffect(() => {
     load().catch((error) => toast.error(error instanceof Error ? error.message : t("couldNotLoadGame")));
-  }, [t]);
+  }, [t, selectedOwnerId]);
+
+  useEffect(() => {
+    const syncOwnerFromUrl = () => setSelectedOwnerId(new URLSearchParams(window.location.search).get("employeeId") ?? "");
+    syncOwnerFromUrl();
+    window.addEventListener("popstate", syncOwnerFromUrl);
+    return () => window.removeEventListener("popstate", syncOwnerFromUrl);
+  }, []);
+
+  useEffect(() => {
+    if (user?.role !== "ADMIN" && user?.role !== "SUPERADMIN") return;
+    api<{ employees: Employee[] }>("/api/employees")
+      .then((data) => setEmployees(data.employees))
+      .catch(() => toast.error(t("couldNotLoadEmployees")));
+  }, [t, user?.role]);
 
   const activeParticipants = state?.participants.filter((participant) => participant.status !== "DISABLED") ?? [];
   const numberOptions = useMemo(() => Array.from({ length: Math.max(activeParticipants.length, 1) }, (_, index) => index + 1), [activeParticipants.length]);
@@ -100,17 +125,33 @@ const [bothGameMode, setBothGameMode] = useState(false);
     for (const entry of state?.entries ?? []) grouped.set(entry.participantId, [...(grouped.get(entry.participantId) ?? []), entry.selectedNumber]);
     return grouped;
   }, [state]);
-  const participantIdByNumber = useMemo(() => new Map(state?.entries.map((entry) => [entry.selectedNumber, entry.participantId]) ?? []), [state]);
-  const assignedNumbers = useMemo(() => new Set(state?.entries.map((entry) => entry.selectedNumber) ?? []), [state]);
+  const entriesByNumber = useMemo(() => {
+    const grouped = new Map<number, Entry[]>();
+    for (const entry of state?.entries ?? []) grouped.set(entry.selectedNumber, [...(grouped.get(entry.selectedNumber) ?? []), entry]);
+    return grouped;
+  }, [state]);
+  const participantById = useMemo(() => new Map(state?.participants.map((participant) => [participant.id, participant]) ?? []), [state]);
   const entryByParticipantAndNumber = useMemo(() => {
     const entries = new Map<string, Entry>();
     for (const entry of state?.entries ?? []) entries.set(`${entry.participantId}:${entry.selectedNumber}`, entry);
     return entries;
   }, [state]);
+  const fullTicketPrice = state?.settings.ticketPrice ?? 0;
+  const selectedTicketPrice = ticketMode === "HALF" ? fullTicketPrice / 2 : fullTicketPrice;
+  const hasAssignedNumber = (number: number) => (entriesByNumber.get(number)?.length ?? 0) > 0;
+  const numberTicketTotal = (number: number) => (entriesByNumber.get(number) ?? []).reduce((sum, entry) => sum + entry.ticketPrice, 0);
+  const numberTicketRatio = (number: number) => fullTicketPrice > 0 ? numberTicketTotal(number) / fullTicketPrice : 0;
+  const participantNamesForNumber = (number: number) => (entriesByNumber.get(number) ?? [])
+    .map((entry) => {
+      const participant = participantById.get(entry.participantId);
+      const label = fullTicketPrice > 0 && entry.ticketPrice < fullTicketPrice ? " (1/2)" : "";
+      return `${participant?.name ?? t("unknownParticipant")}${label}`;
+    })
+    .join(", ");
   const prizePreview = useMemo(() => {
     const ticketPrice = state?.settings.ticketPrice ?? 0;
     const winnerRate = state?.settings.winnerRate ?? 0;
-    const totalSales = (state?.entries.length ?? 0) * ticketPrice;
+    const totalSales = (state?.entries ?? []).reduce((sum, entry) => sum + entry.ticketPrice, 0);
 
     return {
       firstPrize: totalSales - winnerRate - ticketPrice,
@@ -121,7 +162,7 @@ const [bothGameMode, setBothGameMode] = useState(false);
   async function addParticipant(values: FormData) {
     try {
       setBusy(true);
-      await api("/api/numbers/participants", { method: "POST", body: JSON.stringify(values) });
+      await api(`/api/numbers/participants${ownerQuery}`, { method: "POST", body: JSON.stringify(values) });
       form.reset({ name: "", amount: state?.settings.ticketPrice ?? 200 });
       setShowRegistration(false);
       await load();
@@ -157,7 +198,7 @@ async function assign(participant: Participant, selectedNumber: number) {
     try {
       setBusy(true);
       const side = pendingNumber % 2 === 0 ? "EVEN" : "ODD";
-      await api("/api/even-odd", { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, side, amount: bothGameAmount }) });
+      await api(`/api/even-odd${ownerQuery}`, { method: "POST", body: JSON.stringify({ participantId: selectedParticipantForBoth.id, side, amount: bothGameAmount }) });
       await saveAssignment(selectedParticipantForBoth.id, pendingNumber);
       toast.success(t("participantAdded"));
     } catch (error) {
@@ -169,7 +210,7 @@ async function assign(participant: Participant, selectedNumber: number) {
 
   async function saveAssignment(participantId: string, selectedNumber: number) {
     try {
-      await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId, selectedNumber }) });
+      await api(`/api/numbers/assign${ownerQuery}`, { method: "POST", body: JSON.stringify({ participantId, selectedNumber, ticketMode }) });
       await load();
       toast.success(t("participantAdded"));
     } catch (error) {
@@ -237,7 +278,7 @@ async function assign(participant: Participant, selectedNumber: number) {
     
     try {
       setBusy(true);
-      await api("/api/numbers/finish", { method: "POST", body: JSON.stringify({ firstPrizeNumber, secondPrizeNumber }) });
+      await api(`/api/numbers/finish${ownerQuery}`, { method: "POST", body: JSON.stringify({ firstPrizeNumber, secondPrizeNumber }) });
       setFirstPrizeNumber(null);
       setSecondPrizeNumber(null);
       setBothGameMode(false);
@@ -290,10 +331,11 @@ async function assign(participant: Participant, selectedNumber: number) {
   if (loading || !user) return <main className="p-6 text-sm text-zinc-500">{t("loading")}</main>;
   if (!state) return <AppShell user={user}><div className="text-sm text-zinc-500">{t("loadingNumbersGame")}</div></AppShell>;
 
-  const firstPrizeParticipantId = firstPrizeNumber === null ? undefined : participantIdByNumber.get(firstPrizeNumber);
-  const secondPrizeParticipantId = secondPrizeNumber === null ? undefined : participantIdByNumber.get(secondPrizeNumber);
-  const firstPrizeWinner = state.participants.find((participant) => participant.id === firstPrizeParticipantId);
-  const secondPrizeWinner = state.participants.find((participant) => participant.id === secondPrizeParticipantId);
+  const firstPrizeWinnerNames = firstPrizeNumber === null ? "" : participantNamesForNumber(firstPrizeNumber);
+  const secondPrizeWinnerNames = secondPrizeNumber === null ? "" : participantNamesForNumber(secondPrizeNumber);
+  const firstPrizePaidPreview = firstPrizeNumber === null ? 0 : prizePreview.firstPrize * numberTicketRatio(firstPrizeNumber);
+  const secondPrizePaidPreview = secondPrizeNumber === null ? 0 : prizePreview.secondPrize * numberTicketRatio(secondPrizeNumber);
+  const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
 
   const pendingTitle = pendingAction?.type === "removeNumber"
     ? t("removeSelectedNumber")
@@ -322,11 +364,41 @@ async function assign(participant: Participant, selectedNumber: number) {
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
           <div className="flex items-center gap-2">
             <p className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">{t("numbersGame", { number: state.game.number })}</p>
+            <div className="flex overflow-hidden rounded border border-zinc-200 text-[11px] font-semibold dark:border-zinc-800">
+              {(["FULL", "HALF"] as TicketMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  className={`h-7 px-2 ${ticketMode === mode ? "bg-emerald-500 text-white" : "bg-white text-zinc-600 hover:bg-emerald-50 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900"}`}
+                  onClick={() => setTicketMode(mode)}
+                  type="button"
+                >
+                  {mode === "FULL" ? "Full" : "Half"}
+                </button>
+              ))}
+            </div>
             <button className={`h-7 px-2 text-[11px] rounded font-semibold transition ${bothGameMode ? "bg-purple-500 text-white" : "border border-zinc-200 bg-white hover:bg-purple-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"}`} onClick={() => setBothGameMode(!bothGameMode)}>
               {bothGameMode ? "Both ON" : "Both"}
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
+            {isAdmin ? (
+              <select
+                className="h-8 min-w-[180px] text-xs"
+                value={selectedOwnerId}
+                onChange={(event) => {
+                  const nextOwnerId = event.target.value;
+                  setSelectedOwnerId(nextOwnerId);
+                  router.push(nextOwnerId ? `/games/numbers?employeeId=${nextOwnerId}` : "/games/numbers");
+                }}
+              >
+                <option value="">Admin board</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}{employee.disabled ? " (disabled)" : ""}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs flex-1 sm:flex-initial" onClick={() => setShowRegistration(true)}><Plus size={14} /><span className="hidden sm:inline">{t("addParticipant")}</span></button>
             <button className="btn-primary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs flex-1 sm:flex-initial" onClick={() => setShowWinnerSelection(true)}><Trophy size={14} /><span className="hidden sm:inline">{t("selectWinners")}</span></button>
             <button className="btn-secondary h-8 px-2 sm:!px-3 text-[11px] sm:text-xs" onClick={load}><RefreshCw size={14} /><span className="hidden sm:inline">{t("refresh")}</span></button>
@@ -345,14 +417,16 @@ async function assign(participant: Participant, selectedNumber: number) {
                   <div className="grid w-full gap-0.5" style={numberGridStyle}>
                     {numberOptions.map((number) => {
                       const selected = selectedNumbers.includes(number);
-                      const taken = assignedNumbers.has(number) && !selected;
+                      const ticketRatio = numberTicketRatio(number);
+                      const full = ticketRatio >= 1;
+                      const partial = ticketRatio > 0 && ticketRatio < 1;
                       const side = bothGameMode ? (number % 2 === 0 ? "E" : "O") : null;
                       return (
                         <button
                           key={number}
-                          className={`h-5 rounded text-[11px] font-bold relative ${selected ? "bg-emerald-500 text-white" : taken ? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800" : "border border-zinc-200 hover:bg-emerald-50 dark:border-zinc-800 dark:hover:bg-zinc-800"}`}
-                          disabled={taken}
+                          className={`h-5 rounded text-[11px] font-bold relative ${selected ? "bg-emerald-500 text-white" : full ? "border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300" : partial ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300" : "border border-zinc-200 hover:bg-emerald-50 dark:border-zinc-800 dark:hover:bg-zinc-800"}`}
                           onClick={() => assign(participant, number)}
+                          title={ticketRatio > 0 ? `${numberTicketTotal(number)} / ${fullTicketPrice}` : undefined}
                         >
                           <span className="flex items-center justify-center gap-1">
                             {number}
@@ -389,7 +463,9 @@ async function assign(participant: Participant, selectedNumber: number) {
                           <td className="px-1.5 sm:px-3 py-1 sm:py-2">
                             <div className="flex flex-wrap gap-0.5 sm:gap-1">
                               {selectedNumbers.length > 0 ? selectedNumbers.map((number) => (
-                                <span key={number} className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{number}</span>
+                                <span key={number} className="rounded bg-emerald-50 px-1 sm:px-2 py-0.5 text-[6px] sm:text-[8px] md:text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                  {number}{(entryByParticipantAndNumber.get(`${participant.id}:${number}`)?.ticketPrice ?? fullTicketPrice) < fullTicketPrice ? " 1/2" : ""}
+                                </span>
                               )) : <span className="text-zinc-400 text-[6px] sm:text-[8px]">-</span>}
                             </div>
                           </td>
@@ -475,14 +551,13 @@ async function assign(participant: Participant, selectedNumber: number) {
                   </div>
                   <div className="grid w-full gap-0.5" style={numberGridStyle}>
                     {numberOptions.map((number) => {
-                      const participantId = participantIdByNumber.get(number);
-                      const disabled = !participantId || number === secondPrizeNumber;
+                      const disabled = !hasAssignedNumber(number) || number === secondPrizeNumber;
                       return (
                         <button
                           key={`first-${number}`}
                           className={`h-7 rounded text-[11px] font-bold ${firstPrizeNumber === number ? "bg-amber-400 text-black" : disabled ? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800" : "border border-zinc-200 bg-white hover:bg-amber-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"}`}
                           disabled={disabled}
-                          onClick={() => participantId && setFirstPrizeNumber(number)}
+                          onClick={() => hasAssignedNumber(number) && setFirstPrizeNumber(number)}
                         >
                           {number}
                         </button>
@@ -500,14 +575,13 @@ async function assign(participant: Participant, selectedNumber: number) {
                   </div>
                   <div className="grid w-full gap-0.5" style={numberGridStyle}>
                     {numberOptions.map((number) => {
-                      const participantId = participantIdByNumber.get(number);
-                      const disabled = !participantId || number === firstPrizeNumber;
+                      const disabled = !hasAssignedNumber(number) || number === firstPrizeNumber;
                       return (
                         <button
                           key={`second-${number}`}
                           className={`h-7 rounded text-[11px] font-bold ${secondPrizeNumber === number ? "bg-slate-600 text-white" : disabled ? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800" : "border border-zinc-200 bg-white hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"}`}
                           disabled={disabled}
-                          onClick={() => participantId && setSecondPrizeNumber(number)}
+                          onClick={() => hasAssignedNumber(number) && setSecondPrizeNumber(number)}
                         >
                           {number}
                         </button>
@@ -563,12 +637,12 @@ async function assign(participant: Participant, selectedNumber: number) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">{t("firstPrizeWinner")}</p>
-                    <p className="mt-1 text-sm font-bold text-zinc-900 dark:text-white">{firstPrizeWinner?.name ?? t("unknownParticipant")}</p>
+                    <p className="mt-1 text-sm font-bold text-zinc-900 dark:text-white">{firstPrizeWinnerNames || t("unknownParticipant")}</p>
                     <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t("numberLabel")} <span className="font-bold"># {firstPrizeNumber}</span></p>
                   </div>
                   <div className="rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 px-4 py-2 text-center">
                     <p className="text-xs font-semibold text-black">{t("prize")}</p>
-                    <p className="mt-1 text-sm font-bold text-black">{money(prizePreview.firstPrize, state.settings.currency)}</p>
+                    <p className="mt-1 text-sm font-bold text-black">{money(firstPrizePaidPreview, state.settings.currency)}</p>
                   </div>
                 </div>
               </div>
@@ -577,12 +651,12 @@ async function assign(participant: Participant, selectedNumber: number) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">{t("secondPrizeWinner")}</p>
-                    <p className="mt-1 text-sm font-bold text-zinc-900 dark:text-white">{secondPrizeWinner?.name ?? t("unknownParticipant")}</p>
+                    <p className="mt-1 text-sm font-bold text-zinc-900 dark:text-white">{secondPrizeWinnerNames || t("unknownParticipant")}</p>
                     <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t("numberLabel")} <span className="font-bold"># {secondPrizeNumber}</span></p>
                   </div>
                   <div className="rounded-lg bg-gradient-to-br from-slate-500 to-slate-600 px-4 py-2 text-center">
                     <p className="text-xs font-semibold text-white">{t("prize")}</p>
-                    <p className="mt-1 text-sm font-bold text-white">{money(prizePreview.secondPrize, state.settings.currency)}</p>
+                    <p className="mt-1 text-sm font-bold text-white">{money(secondPrizePaidPreview, state.settings.currency)}</p>
                   </div>
                 </div>
               </div>
@@ -710,7 +784,7 @@ async function assign(participant: Participant, selectedNumber: number) {
                 />
               </div>
               <div className="rounded-lg bg-purple-50 px-3 py-2 dark:bg-purple-950/30">
-                <p className="text-xs text-purple-700 dark:text-purple-300">Numbers ticket: {money(state?.settings.ticketPrice ?? 200, state?.settings.currency)}</p>
+                <p className="text-xs text-purple-700 dark:text-purple-300">Numbers ticket: {money(selectedTicketPrice, state?.settings.currency)} ({ticketMode === "HALF" ? "Half" : "Full"})</p>
                 <p className="text-xs text-purple-700 dark:text-purple-300">Even-Odd bet: {money(bothGameAmount, state?.settings.currency)}</p>
               </div>
             </div>
@@ -722,7 +796,7 @@ async function assign(participant: Participant, selectedNumber: number) {
                 setShowBothModal(false);
                 try {
                   setBusy(true);
-                  await api("/api/numbers/assign", { method: "POST", body: JSON.stringify({ participantId, selectedNumber: number }) });
+                  await api(`/api/numbers/assign${ownerQuery}`, { method: "POST", body: JSON.stringify({ participantId, selectedNumber: number, ticketMode }) });
                   setSelectedParticipantForBoth(null);
                   setPendingNumber(null);
                   await load();
