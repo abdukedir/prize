@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Toaster } from "sonner";
 import "./globals.css";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Game Prize Management SaaS",
   description: "Multi-tenant game prize, participant, winner, and employee management."
