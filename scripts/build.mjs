@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 process.env.NODE_ENV = "production";
@@ -6,6 +6,34 @@ process.env.NEXT_TELEMETRY_DISABLED = "1";
 
 rmSync(".next", { recursive: true, force: true });
 rmSync("pages", { recursive: true, force: true });
+
+const stalePageFiles = [
+  "src/pages/404.js",
+  "src/pages/404.jsx",
+  "src/pages/404.ts",
+  "src/pages/500.js",
+  "src/pages/500.jsx",
+  "src/pages/500.ts",
+  "src/pages/_app.js",
+  "src/pages/_app.jsx",
+  "src/pages/_app.ts",
+  "src/pages/_app.tsx",
+  "src/pages/_document.js",
+  "src/pages/_document.jsx",
+  "src/pages/_document.ts",
+  "src/pages/_document.tsx",
+  "src/pages/_error.js",
+  "src/pages/_error.jsx",
+  "src/pages/_error.ts",
+  "src/pages/_error.tsx"
+];
+
+for (const file of stalePageFiles) {
+  if (existsSync(file)) {
+    unlinkSync(file);
+    console.log(`Removed stale build file: ${file}`);
+  }
+}
 
 const envPath = ".env";
 const envBackupPath = ".env.codex-build-backup";

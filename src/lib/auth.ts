@@ -1,21 +1,15 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { signSession, SessionUser, verifySessionToken } from "@/lib/auth-token";
 
 const AUTH_COOKIE = "gpm_session";
 const CSRF_COOKIE = "gpm_csrf";
-const encoder = new TextEncoder();
 
-export type SessionUser = {
-  id: string;
-  tenantId: string;
-  name: string;
-  email: string;
-  role: Role;
-};
+export type { SessionUser };
+export { signSession, verifySessionToken };
 
 export const adminRoles: Role[] = ["ADMIN", "SUPERADMIN"];
 
@@ -27,36 +21,12 @@ export function scopedTenantWhere(user: SessionUser) {
   return isSuperAdmin(user) ? {} : { tenantId: user.tenantId };
 }
 
-function jwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("JWT_SECRET is required");
-  return encoder.encode(secret);
-}
-
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
 }
 
 export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
-}
-
-export async function signSession(user: SessionUser) {
-  return new SignJWT(user)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("8h")
-    .sign(jwtSecret());
-}
-
-export async function verifySessionToken(token?: string): Promise<SessionUser | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, jwtSecret());
-    return payload as SessionUser;
-  } catch {
-    return null;
-  }
 }
 
 export async function currentUser(): Promise<SessionUser | null> {

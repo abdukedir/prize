@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySessionToken } from "@/lib/auth";
+import { verifySessionToken } from "@/lib/auth-token";
 
 const publicPaths = ["/login", "/setup", "/api/auth/login", "/api/auth/bootstrap"];
 const adminOnlyPaths = ["/employees", "/audit", "/backup"];
