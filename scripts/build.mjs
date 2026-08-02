@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-process.env.NODE_ENV = "production";
+process.env.NODE_ENV = "development";
 process.env.NEXT_TELEMETRY_DISABLED = "1";
 
 rmSync(".next", { recursive: true, force: true });
@@ -54,7 +54,7 @@ if (existsSync(envPath)) {
     .join("\n");
 
   renameSync(envPath, envBackupPath);
-  writeFileSync(envPath, `${sanitizedEnv.replace(/\s*$/, "")}\nNODE_ENV=production\n`);
+  writeFileSync(envPath, `${sanitizedEnv.replace(/\s*$/, "")}\nNODE_ENV=development\n`);
   process.on("exit", restoreEnv);
   process.on("SIGINT", () => {
     restoreEnv();
