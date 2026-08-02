@@ -7,3 +7,6 @@ out
 dist
 coverage
 *.tsbuildinfo
+desktop
+desktop.pub
+src/app/settings/page.zip
