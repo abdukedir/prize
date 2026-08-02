@@ -8,7 +8,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/game_prize_saas?schema=public
       - JWT_SECRET=${JWT_SECRET}
-      - APP_URL=${APP_URL}
+      - APP_URL=https://prize.takoeth.com
     depends_on:
       postgres:
         condition: service_healthy

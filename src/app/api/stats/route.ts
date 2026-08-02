@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { handleError, ok } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { getTenantStats } from "@/lib/stats";

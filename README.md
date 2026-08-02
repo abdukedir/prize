@@ -50,7 +50,7 @@ Demo credentials after seeding:
 ## Deployment
 
 1. Provision PostgreSQL.
-2. Set `DATABASE_URL`, `JWT_SECRET`, and `APP_URL` in your host.
+2. Set `DATABASE_URL` and `JWT_SECRET` in your host. Production Docker sets `APP_URL` to `https://prize.takoeth.com`.
 3. Run:
    ```bash
    npm install

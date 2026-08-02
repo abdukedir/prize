@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { clearAuthCookies, currentUser, logActivity } from "@/lib/auth";
 import { ensureCsrf, handleError } from "@/lib/api";

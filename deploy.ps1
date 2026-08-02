@@ -23,6 +23,6 @@ Write-Host "Running database migrations..." -ForegroundColor Yellow
 docker compose -f docker-compose.prod.yml exec -T app npx prisma migrate deploy
 
 Write-Host "=== Deployment complete ===" -ForegroundColor Green
-Write-Host "App should be running at http://localhost:3000" -ForegroundColor Green
+Write-Host "App should be running at https://prize.takoeth.com" -ForegroundColor Green
 Write-Host "Check status: docker compose -f docker-compose.prod.yml ps" -ForegroundColor Gray
 Write-Host "View logs: docker compose -f docker-compose.prod.yml logs -f app" -ForegroundColor Gray

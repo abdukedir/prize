@@ -22,6 +22,6 @@ echo "Running database migrations..."
 docker compose -f docker-compose.prod.yml exec -T app npx prisma migrate deploy
 
 echo "=== Deployment complete ==="
-echo "App should be running at http://localhost:3000"
+echo "App should be running at https://prize.takoeth.com"
 echo "Check status: docker compose -f docker-compose.prod.yml ps"
 echo "View logs: docker compose -f docker-compose.prod.yml logs -f app"

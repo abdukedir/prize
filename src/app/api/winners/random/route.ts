@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/prisma";
 import { ensureCsrf, handleError, ok } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";

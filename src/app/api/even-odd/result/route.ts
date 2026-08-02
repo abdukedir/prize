@@ -3,6 +3,8 @@ import { ensureCsrf, handleError, ok, parseJson } from "@/lib/api";
 import { logActivity, requireUser } from "@/lib/auth";
 import { processEvenOddRoundResult, serializeEvenOddRound, sideForNumber } from "@/lib/games/even-odd";
 import { evenOddPublishResultSchema } from "@/lib/validators";
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
