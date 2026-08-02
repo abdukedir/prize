@@ -9,15 +9,7 @@ Production-ready multi-tenant game prize management app built with Next.js App R
    ```bash
    npm install
    ```
-3. Start PostgreSQL.
-
-   With Docker Desktop installed:
-
-   ```bash
-   docker compose up -d postgres
-   ```
-
-   Or start a local PostgreSQL server yourself and set `DATABASE_URL` in `.env` to match it.
+3. Start PostgreSQL and set `DATABASE_URL` in `.env` to match it.
 
 4. Create database tables:
    ```bash
@@ -50,7 +42,7 @@ Demo credentials after seeding:
 ## Deployment
 
 1. Provision PostgreSQL.
-2. Set `DATABASE_URL` and `JWT_SECRET` in your host. Production Docker sets `APP_URL` to `https://prize.takoeth.com`.
+2. Set `DATABASE_URL`, `JWT_SECRET`, `APP_URL=https://prize.takoeth.com`, and `NODE_ENV=production` in your host.
 3. Run:
    ```bash
    npm install
