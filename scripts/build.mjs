@@ -6,6 +6,7 @@ process.env.NEXT_TELEMETRY_DISABLED = "1";
 
 rmSync(".next", { recursive: true, force: true });
 rmSync("pages", { recursive: true, force: true });
+rmSync("src/pages", { recursive: true, force: true });
 
 const stalePageFiles = [
   "src/pages/404.js",
