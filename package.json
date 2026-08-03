@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "node scripts/build.mjs",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "seed": "tsx prisma/seed.ts"
