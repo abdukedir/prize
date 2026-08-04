@@ -8,7 +8,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 const nextBin = require.resolve("next/dist/bin/next");
 
-rmSync(resolve(root, ".next"), { recursive: true, force: true });
+function removeBuildDir() {
+  const buildDir = resolve(root, ".next");
+  rmSync(buildDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+}
+
+removeBuildDir();
 
 console.log(`Building with NODE_ENV=production`);
 console.log(`Using Next CLI: ${nextBin}`);
